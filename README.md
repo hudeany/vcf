@@ -1,5 +1,5 @@
 # vcf
-VCF Format Reader (de.soderer.utilities.vcf.VcfReader) and Writer (de.soderer.utilities.vcf.VcfWriter)
+JAVA VCF Format Reader (de.soderer.utilities.vcf.VcfReader) and Writer (de.soderer.utilities.vcf.VcfWriter)
 
 Datacontainer class is de.soderer.utilities.vcf.VcfCard
 
