@@ -1,26 +1,32 @@
 package de.soderer.utilities.vcf;
 
 import java.io.BufferedReader;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.MonthDay;
+import java.time.Year;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
-import de.soderer.utilities.BOMInputStream;
-import de.soderer.utilities.DateUtilities;
-import de.soderer.utilities.QuotedPrintableCodec;
-import de.soderer.utilities.Utilities;
+import de.soderer.utilities.vcf.utilities.BOMInputStream;
+import de.soderer.utilities.vcf.utilities.DateUtilities;
+import de.soderer.utilities.vcf.utilities.QuotedPrintableCodec;
+import de.soderer.utilities.vcf.utilities.Utilities;
 
 /**
  * Reader for vcf (vCard file) format
  *
  * See: https://de.wikipedia.org/wiki/VCard#Eigenschaften
  */
-public class VcfReader implements AutoCloseable {
+public class VcfReader implements Closeable {
 	private boolean strict = false;
 
 	/** If a single read was done, it is impossible to make a full read at once with readAll(). */
@@ -74,7 +80,7 @@ public class VcfReader implements AutoCloseable {
 			if (nextLine.equals(VcfConstants.END_VCARD)) {
 				break;
 			} else if (Utilities.isBlank(nextLine)) {
-				//  skip empty lines
+				// skip empty lines
 			} else if (lastLine != null && lastLine.endsWith("=") && lastLineWasQuotedPrintable) {
 				// QUOTED-PRINTABLE encoded multiline
 				nextLine = lastLine + "\n" + nextLine;
@@ -148,11 +154,10 @@ public class VcfReader implements AutoCloseable {
 				}
 				card.setFormattedName(decodedValues.get(0));
 			} else if (VcfConstants.ORGANIZATION_PROPERTY.equals(property)) {
-				final List<String> decodedValues = decodeValues(prefixes, values);
-				if (decodedValues.size() != 1) {
-					throw new Exception("Invalid organization (" + VcfConstants.ORGANIZATION_PROPERTY + ") data (must have 1 part, has " + decodedValues.size() + ") in line " + currentLineNumber);
-				}
-				card.setOrganization(decodedValues);
+				final List<String> decodedValues = decodeValues(prefixes, values).stream().filter(x -> Utilities.isNotBlank(x)).collect(Collectors.toList());
+				final ArrayList<String> organization = new ArrayList<>();
+				organization.add(Utilities.join(decodedValues, ", "));
+				card.setOrganization(organization);
 			} else if (VcfConstants.ROLE_PROPERTY.equals(property)) {
 				final List<String> decodedValues = decodeValues(prefixes, values);
 				if (decodedValues.size() != 1) {
@@ -226,10 +231,10 @@ public class VcfReader implements AutoCloseable {
 				}
 				if (decodedValues.get(0).contains("-")) {
 					card.setLatestUpdate(DateUtilities.parseIso8601DateTimeString(decodedValues.get(0)));
+				} else if (decodedValues.get(0).contains("T")) {
+					card.setLatestUpdate(DateUtilities.parseZonedDateTime("yyyyMMdd'T'HHmmssX", decodedValues.get(0), ZoneId.systemDefault()));
 				} else {
-					final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd'T'HHmmssX");
-					dateFormat.setLenient(false);
-					card.setLatestUpdate(dateFormat.parse(decodedValues.get(0)));
+					card.setLatestUpdate(DateUtilities.parseZonedDateTime("yyyyMMdd", decodedValues.get(0), ZoneId.systemDefault()));
 				}
 			} else if (VcfConstants.URL_PROPERTY.equals(property)) {
 				final List<String> decodedValues = decodeValues(prefixes, values);
@@ -249,14 +254,17 @@ public class VcfReader implements AutoCloseable {
 					throw new Exception("Invalid title (" + VcfConstants.BIRTHDAY_PROPERTY + ") data (must have 1 part, has " + decodedValues.size() + ") in line " + currentLineNumber);
 				}
 				if (decodedValues.get(0).startsWith("--")) {
-					// Date without year
-					card.setBirthday(DateUtilities.parseIso8601DateTimeString("0001" + decodedValues.get(0).substring(1)), true);
+					// Date without year "--12-31"
+					card.setBirthday(MonthDay.parse(decodedValues.get(0), DateTimeFormatter.ofPattern("--MM-dd")));
+					card.setBirthyear(null);
 				} else if (decodedValues.get(0).contains("-")) {
-					card.setBirthday(DateUtilities.parseIso8601DateTimeString(decodedValues.get(0)));
+					final LocalDate birthDay = DateUtilities.parseIso8601DateTimeString(decodedValues.get(0)).toLocalDate();
+					card.setBirthday(MonthDay.from(birthDay));
+					card.setBirthyear(Year.from(birthDay));
 				} else {
-					final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd");
-					dateFormat.setLenient(false);
-					card.setBirthday(dateFormat.parse(decodedValues.get(0)));
+					final LocalDate birthDay = DateUtilities.parseLocalDate("yyyyMMdd", decodedValues.get(0));
+					card.setBirthday(MonthDay.from(birthDay));
+					card.setBirthyear(Year.from(birthDay));
 				}
 			} else if (VcfConstants.A_ANDROID_CUSTOM_PROPERTY.equals(property)) {
 				// Ignore property
@@ -296,7 +304,7 @@ public class VcfReader implements AutoCloseable {
 		return card;
 	}
 
-	private static List<String> decodeValues(final String[] prefixes, final String[] values) throws Exception {
+	private static List<String> decodeValues(final String[] prefixes, final String[] values) {
 		final List<String> prefixList = Arrays.asList(prefixes);
 		final List<String> valuesDecoded = new ArrayList<>();
 
@@ -336,7 +344,7 @@ public class VcfReader implements AutoCloseable {
 	}
 
 	@Override
-	public void close() throws Exception {
+	public void close() {
 		if (inputReader != null) {
 			try {
 				inputReader.close();

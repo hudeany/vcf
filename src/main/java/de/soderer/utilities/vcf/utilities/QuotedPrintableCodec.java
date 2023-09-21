@@ -1,4 +1,4 @@
-package de.soderer.utilities;
+package de.soderer.utilities.vcf.utilities;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.Charset;

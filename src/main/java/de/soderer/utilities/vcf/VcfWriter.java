@@ -1,29 +1,30 @@
 package de.soderer.utilities.vcf;
 
 import java.io.BufferedWriter;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.text.SimpleDateFormat;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.TimeZone;
 
-import de.soderer.utilities.BOM;
-import de.soderer.utilities.DateUtilities;
-import de.soderer.utilities.QuotedPrintableCodec;
-import de.soderer.utilities.Utilities;
+import de.soderer.utilities.vcf.utilities.BOM;
+import de.soderer.utilities.vcf.utilities.DateUtilities;
+import de.soderer.utilities.vcf.utilities.QuotedPrintableCodec;
+import de.soderer.utilities.vcf.utilities.Utilities;
 
 /**
  * Writer for vcf (vCard file) format
  *
  * See: https://de.wikipedia.org/wiki/VCard#Eigenschaften
  */
-public class VcfWriter implements AutoCloseable {
+public class VcfWriter implements Closeable {
 	private String defaultVersion = "2.1";
 
 	/** Number of cards written until now. */
@@ -40,7 +41,7 @@ public class VcfWriter implements AutoCloseable {
 		bufferedWriter = new BufferedWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8));
 	}
 
-	public VcfWriter(final OutputStream outputStream, final Charset charset) throws Exception {
+	public VcfWriter(final OutputStream outputStream, final Charset charset) {
 		bufferedWriter = new BufferedWriter(new OutputStreamWriter(outputStream, charset));
 	}
 
@@ -172,8 +173,8 @@ public class VcfWriter implements AutoCloseable {
 			}
 		}
 
-		if (Utilities.isNotEmpty(card.getAdresses())) {
-			for (final VcfAttributedAddress address : card.getAdresses()) {
+		if (Utilities.isNotEmpty(card.getAddresses())) {
+			for (final VcfAttributedAddress address : card.getAddresses()) {
 				final List<String> values = new ArrayList<>();
 				values.addAll(address.getValues());
 
@@ -190,9 +191,7 @@ public class VcfWriter implements AutoCloseable {
 		}
 
 		if (card.getLatestUpdate() != null) {
-			final SimpleDateFormat dateFormat = new SimpleDateFormat(DateUtilities.ISO_8601_DATETIME_FORMAT);
-			dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
-			final String value = dateFormat.format(card.getLatestUpdate());
+			final String value = DateUtilities.formatDate(DateUtilities.ISO_8601_DATETIME_FORMAT, card.getLatestUpdate(), ZoneId.of("GMT"));
 			writeLine(VcfConstants.REVISION_PROPERTY + ":" + value);
 		}
 
@@ -212,12 +211,10 @@ public class VcfWriter implements AutoCloseable {
 
 		if (card.getBirthday() != null) {
 			final String value;
-			if (card.isBirthdayWithoutYear()) {
-				final SimpleDateFormat dateFormat = new SimpleDateFormat("--MM-dd");
-				value = dateFormat.format(card.getBirthday());
+			if (card.getBirthyear() == null) {
+				value = card.getBirthday().format(DateTimeFormatter.ofPattern("--MM-dd"));
 			} else {
-				final SimpleDateFormat dateFormat = new SimpleDateFormat(DateUtilities.YYYY_MM_DD);
-				value = dateFormat.format(card.getBirthday());
+				value = card.getBirthday().atYear(card.getBirthyear().getValue()).format(DateTimeFormatter.ofPattern(DateUtilities.YYYY_MM_DD));
 			}
 			writeLine(VcfConstants.BIRTHDAY_PROPERTY + ":" + value);
 		}
@@ -231,7 +228,7 @@ public class VcfWriter implements AutoCloseable {
 		bufferedWriter.write("\n");
 	}
 
-	private static List<String> encodeValues(final String version, final List<String> values) throws Exception {
+	private static List<String> encodeValues(final String version, final List<String> values) {
 		if ("2.1".equals(version)) {
 			boolean mustEncode = false;
 			for (final String value : values) {
@@ -307,7 +304,7 @@ public class VcfWriter implements AutoCloseable {
 	}
 
 	@Override
-	public void close() throws Exception {
+	public void close() {
 		if (bufferedWriter != null) {
 			try {
 				bufferedWriter.flush();

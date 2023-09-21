@@ -1,4 +1,4 @@
-package de.soderer.utilities;
+package de.soderer.utilities.vcf.utilities;
 
 import java.io.ByteArrayOutputStream;
 import java.security.SecureRandom;
@@ -9,6 +9,7 @@ import java.util.regex.Pattern;
 public class BitUtilities {
 	private static Pattern BITSTRINGPATTERN_BYTE = Pattern.compile("^[10]{1,8}$");
 	private static Pattern BITSTRINGPATTERN_INTEGER = Pattern.compile("^[10]{1,32}$");
+	private static Pattern HEXADECIMAL_PATTERN = Pattern.compile("\\p{XDigit}+");
 
 	/**
 	 * Returns values from 0 to 255 (value range of byte)
@@ -135,19 +136,53 @@ public class BitUtilities {
 		return result;
 	}
 
+	public static byte[] fromHexString(final String value) {
+		if (value == null) {
+			return null;
+		} else {
+			String decodeValue = value;
+			if (value.toLowerCase().startsWith("0x")) {
+				decodeValue = decodeValue.substring(2);
+			}
+			if (!HEXADECIMAL_PATTERN.matcher(decodeValue).matches()) {
+				throw new RuntimeException("String contains non hexadecimal character: " + value);
+			}
+			final int length = decodeValue.length();
+			final byte[] data = new byte[length / 2];
+			for (int i = 0; i < length; i += 2) {
+				data[i / 2] = (byte) ((Character.digit(decodeValue.charAt(i), 16) << 4) + Character.digit(decodeValue.charAt(i + 1), 16));
+			}
+			return data;
+		}
+	}
+
+	public static byte[] fromHexString(final String value, final boolean ignoreNonHexCharacters) {
+		if (value == null) {
+			return null;
+		} else if (ignoreNonHexCharacters) {
+			return fromHexString(value.toLowerCase().replaceAll("[^abcdef0-9]", ""));
+		} else {
+			return fromHexString(value);
+		}
+	}
+
 	/**
 	 * Uppercase hexadezimal display of ByteArray data
 	 */
 	public static String toHexString(final byte[] data) {
-		final char[] hexArray = "0123456789ABCDEF".toCharArray();
+		if (data == null) {
+			return null;
+		} else {
+			final char[] hexArray = "0123456789ABCDEF".toCharArray();
 
-		final char[] hexChars = new char[data.length * 2];
-		for (int j = 0; j < data.length; j++) {
-			final int v = data[j] & 0xFF;
-			hexChars[j * 2] = hexArray[v >>> 4];
-			hexChars[j * 2 + 1] = hexArray[v & 0x0F];
+			final char[] hexChars = new char[data.length * 2];
+			for (int j = 0; j < data.length; j++) {
+				final int v = data[j] & 0xFF;
+				hexChars[j * 2] = hexArray[v >>> 4];
+				hexChars[j * 2 + 1] = hexArray[v & 0x0F];
+			}
+			return new String(hexChars);
 		}
-		return new String(hexChars);
 	}
 
 	/**
@@ -156,57 +191,12 @@ public class BitUtilities {
 	public static String toHexString(final byte[] data, final String separator) {
 		final StringBuilder returnString = new StringBuilder();
 		for (final byte dataByte : data) {
-			if (returnString.length() > 0) {
+			if (returnString.length() > 0 && separator != null) {
 				returnString.append(separator);
 			}
 			returnString.append(String.format("%02X", dataByte));
 		}
 		return returnString.toString().toLowerCase();
-	}
-
-	public static String getHexString(final byte[] data, final String separator, final int bytesBeforeLinebreak, final boolean insertHexLineNumber, final boolean insertAsciiText) {
-		final StringBuilder returnString = new StringBuilder();
-		int byteCount = 0;
-		StringBuilder asciiTextLine = new StringBuilder();
-		for (final byte dataByte : data) {
-			if (byteCount > 0) {
-				if (bytesBeforeLinebreak > 0 && byteCount % bytesBeforeLinebreak == 0) {
-					if (insertAsciiText) {
-						returnString.append(" ; ");
-						returnString.append(asciiTextLine);
-						asciiTextLine = new StringBuilder();
-					}
-					returnString.append('\n');
-					if (insertHexLineNumber) {
-						returnString.append(String.format("%08Xh: ", byteCount));
-					}
-				} else {
-					returnString.append(separator);
-				}
-			}
-			returnString.append(String.format("%02X", dataByte));
-			if (dataByte >= 0 && dataByte < 32) {
-				asciiTextLine.append('.');
-			} else {
-				asciiTextLine.append(new String(new byte[] { dataByte }));
-			}
-			byteCount++;
-		}
-
-		if (insertAsciiText && asciiTextLine.length() > 0) {
-			final int bytesInLastLine = byteCount % bytesBeforeLinebreak;
-			if (bytesInLastLine > 0) {
-				returnString.append(TextUtilities.repeatString("   ", bytesBeforeLinebreak - bytesInLastLine));
-			}
-			returnString.append(" ; ");
-			returnString.append(asciiTextLine.toString());
-		}
-
-		if (insertHexLineNumber) {
-			return String.format("%08Xh: ", 0) + returnString.toString();
-		} else {
-			return returnString.toString();
-		}
 	}
 
 	public static byte[] getByteArrayFromHexString(final String value) {
