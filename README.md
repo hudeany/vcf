@@ -13,3 +13,19 @@ The vcf format stores personal information like those printed on business cards.
 It is widely spread and the defacto standard of contact storage on smartphones.
 
 This Reader and Writer support streamed data, so it can be stored and loaded in any container technology like plain file, zipped file, internet http data stream.
+
+## Maven2 repository
+This library is also available via Maven2 repository
+ 
+	<repositories>
+		<repository>
+			<id>de.soderer</id>
+			<url>http://soderer.de/maven2</url>
+		</repository>
+	</repositories>
+
+	<dependency>
+		<groupId>de.soderer</groupId>
+		<artifactId>vcf</artifactId>
+		<version>RELEASE</version>
+	</dependency>
