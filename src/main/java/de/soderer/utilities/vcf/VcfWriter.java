@@ -122,20 +122,28 @@ public class VcfWriter implements Closeable {
 			final List<String> values = new ArrayList<>();
 			values.add(card.getPhotoUrl());
 			final List<String> parametersToSet = encodeValues(version, values);
+			final String imageType = detectImageTypeFromUrl(card.getPhotoUrl());
 			if ("4.0".equals(version)) {
-				writeLine(VcfConstants.PHOTO_PROPERTY + ";MEDIATYPE=image/jpeg" + (Utilities.isEmpty(parametersToSet) ? "" : ";" + Utilities.join(parametersToSet, ";")) + ":" + Utilities.join(values, ";"));
+				writeLine(VcfConstants.PHOTO_PROPERTY + ";MEDIATYPE=image/" + imageType + (Utilities.isEmpty(parametersToSet) ? "" : ";" + Utilities.join(parametersToSet, ";")) + ":" + Utilities.join(values, ";"));
 			} else if ("3.0".equals(version)) {
-				writeLine(VcfConstants.PHOTO_PROPERTY + ";VALUE=URL;TYPE=JPEG" + (Utilities.isEmpty(parametersToSet) ? "" : ";" + Utilities.join(parametersToSet, ";")) + ":" + Utilities.join(values, ";"));
+				writeLine(VcfConstants.PHOTO_PROPERTY + ";VALUE=URL;TYPE=" + imageType.toUpperCase() + (Utilities.isEmpty(parametersToSet) ? "" : ";" + Utilities.join(parametersToSet, ";")) + ":" + Utilities.join(values, ";"));
 			} else {
-				writeLine(VcfConstants.PHOTO_PROPERTY + ";JPEG" + (Utilities.isEmpty(parametersToSet) ? "" : ";" + Utilities.join(parametersToSet, ";")) + ":" + Utilities.join(values, ";"));
+				writeLine(VcfConstants.PHOTO_PROPERTY + ";" + imageType.toUpperCase() + (Utilities.isEmpty(parametersToSet) ? "" : ";" + Utilities.join(parametersToSet, ";")) + ":" + Utilities.join(values, ";"));
 			}
 		}
 
 		if (card.getPhotoData() != null) {
 			final String value = Utilities.encodeBase64(card.getPhotoData()).replaceAll("(.{80})", "$1\n ");
+			final String imageType = detectImageTypeFromData(card.getPhotoData());
 			final List<String> parametersToSet = new ArrayList<>();
-			parametersToSet.add("ENCODING=BASE64");
-			writeLine(VcfConstants.PHOTO_PROPERTY + (Utilities.isEmpty(parametersToSet) ? "" : ";" + Utilities.join(parametersToSet, ";")) + ":" + value);
+			if ("4.0".equals(version)) {
+				parametersToSet.add("ENCODING=b");
+				parametersToSet.add("MEDIATYPE=image/" + imageType);
+			} else {
+				parametersToSet.add("ENCODING=BASE64");
+				parametersToSet.add("TYPE=" + imageType.toUpperCase());
+			}
+			writeLine(VcfConstants.PHOTO_PROPERTY + ";" + Utilities.join(parametersToSet, ";") + ":" + value);
 			bufferedWriter.write("\n");
 		}
 
@@ -253,6 +261,11 @@ public class VcfWriter implements Closeable {
 				return null;
 			}
 		} else {
+			// Vcf 3.0/4.0 mandate UTF-8, so no CHARSET parameter is needed.
+			// Note: this codebase still uses ENCODING=QUOTED-PRINTABLE for values needing escaping,
+			// which is not strictly RFC-conformant for 4.0 (RFC 6350 dropped this parameter), but
+			// round-trips correctly with this library's own VcfReader. For strict RFC 6350 output,
+			// backslash-escaping of newlines ("\n") would need to be implemented on both writer and reader.
 			boolean mustEncode = false;
 			for (final String value : values) {
 				if (value != null && (value.contains("\n") || value.contains("\r") || value.contains("="))) {
@@ -266,7 +279,6 @@ public class VcfWriter implements Closeable {
 					values.set(i, QuotedPrintableCodec.encode(values.get(i), StandardCharsets.UTF_8));
 				}
 				final List<String> parameterList = new ArrayList<>();
-				parameterList.add("CHARSET=UTF-8");
 				parameterList.add("ENCODING=QUOTED-PRINTABLE");
 				return parameterList;
 			} else {
@@ -315,5 +327,36 @@ public class VcfWriter implements Closeable {
 		}
 
 		bufferedWriter = null;
+	}
+
+	private static String detectImageTypeFromData(final byte[] data) {
+		if (data != null && data.length >= 4) {
+			if ((data[0] & 0xFF) == 0xFF && (data[1] & 0xFF) == 0xD8) {
+				return "jpeg";
+			} else if ((data[0] & 0xFF) == 0x89 && data[1] == 'P' && data[2] == 'N' && data[3] == 'G') {
+				return "png";
+			} else if (data[0] == 'G' && data[1] == 'I' && data[2] == 'F') {
+				return "gif";
+			} else if (data[0] == 'B' && data[1] == 'M') {
+				return "bmp";
+			}
+		}
+		return "jpeg";
+	}
+
+	private static String detectImageTypeFromUrl(final String url) {
+		if (url != null) {
+			final String lowerUrl = url.toLowerCase();
+			if (lowerUrl.endsWith(".png")) {
+				return "png";
+			} else if (lowerUrl.endsWith(".gif")) {
+				return "gif";
+			} else if (lowerUrl.endsWith(".bmp")) {
+				return "bmp";
+			} else if (lowerUrl.endsWith(".webp")) {
+				return "webp";
+			}
+		}
+		return "jpeg";
 	}
 }

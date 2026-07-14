@@ -5,6 +5,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.MonthDay;
@@ -16,6 +17,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import de.soderer.utilities.vcf.utilities.BOM;
 import de.soderer.utilities.vcf.utilities.BOMInputStream;
 import de.soderer.utilities.vcf.utilities.DateUtilities;
 import de.soderer.utilities.vcf.utilities.QuotedPrintableCodec;
@@ -40,7 +42,24 @@ public class VcfReader implements Closeable {
 	private BufferedReader inputReader = null;
 
 	public VcfReader(final InputStream inputStream) throws Exception {
-		inputReader = new BufferedReader(new InputStreamReader(new BOMInputStream(inputStream).skipBOM(), StandardCharsets.UTF_8));
+		final BOMInputStream bomInputStream = new BOMInputStream(inputStream);
+		final Charset detectedCharset = getCharsetForBom(bomInputStream.getBOM());
+		inputReader = new BufferedReader(new InputStreamReader(bomInputStream.skipBOM(), detectedCharset));
+	}
+
+	private static Charset getCharsetForBom(final BOM bom) {
+		if (bom == BOM.UTF_16_LE) {
+			return StandardCharsets.UTF_16LE;
+		} else if (bom == BOM.UTF_16_BE) {
+			return StandardCharsets.UTF_16BE;
+		} else if (bom == BOM.UTF_32_LE) {
+			return Charset.forName("UTF-32LE");
+		} else if (bom == BOM.UTF_32_BE) {
+			return Charset.forName("UTF-32BE");
+		} else {
+			// BOM.UTF_8 or BOM.NONE
+			return StandardCharsets.UTF_8;
+		}
 	}
 
 	public boolean isStrict() {
@@ -53,7 +72,6 @@ public class VcfReader implements Closeable {
 	}
 
 	public VcfCard readNextCard() throws Exception {
-		readCards++;
 		singleReadStarted = true;
 
 		String nextLine;
@@ -68,6 +86,8 @@ public class VcfReader implements Closeable {
 			return null;
 		}
 
+		readCards++;
+
 		final int cardStartLine = readLines;
 
 		final List<String> vcfCardLines = new ArrayList<>();
@@ -80,13 +100,14 @@ public class VcfReader implements Closeable {
 			if (nextLine.equals(VcfConstants.END_VCARD)) {
 				break;
 			} else if (Utilities.isBlank(nextLine)) {
-				// skip empty lines
+				// Skip empty lines without touching continuation tracking (lastLine/lastLineWasQuotedPrintable)
+				continue;
 			} else if (lastLine != null && lastLine.endsWith("=") && lastLineWasQuotedPrintable) {
 				// QUOTED-PRINTABLE encoded multiline
 				nextLine = lastLine + "\n" + nextLine;
 				vcfCardLines.set(vcfCardLines.size() - 1, nextLine);
-			} else if (nextLine.startsWith(" ")) {
-				// Base64 data multiline
+			} else if (nextLine.startsWith(" ") || nextLine.startsWith("\t")) {
+				// Base64 (or folded) data multiline
 				nextLine = lastLine + nextLine.substring(1);
 				vcfCardLines.set(vcfCardLines.size() - 1, nextLine);
 			} else {
@@ -94,7 +115,7 @@ public class VcfReader implements Closeable {
 			}
 
 			lastLine = nextLine;
-			lastLineWasQuotedPrintable = lastLine.contains("ENCODING=QUOTED-PRINTABLE");
+			lastLineWasQuotedPrintable = lastLine.toUpperCase().contains("ENCODING=QUOTED-PRINTABLE");
 		}
 
 		if (nextLine == null) {
@@ -138,8 +159,12 @@ public class VcfReader implements Closeable {
 			} else if (VcfConstants.NAME_PROPERTY.equals(property)) {
 				namePropertyWasPresent = true;
 				final List<String> decodedValues = decodeValues(prefixes, values);
-				if (decodedValues.size() != 5) {
-					throw new Exception("Invalid name (" + VcfConstants.NAME_PROPERTY + ") data (must have 5 parts, has " + decodedValues.size() + ") in line " + currentLineNumber);
+				if (decodedValues.size() > 5) {
+					throw new Exception("Invalid name (" + VcfConstants.NAME_PROPERTY + ") data (must have at most 5 parts, has " + decodedValues.size() + ") in line " + currentLineNumber);
+				}
+				while (decodedValues.size() < 5) {
+					// Tolerate missing trailing empty parts, as produced by some real-world vcf exporters
+					decodedValues.add(null);
 				}
 				card.setLastName(decodedValues.get(0));
 				card.setFirstName(decodedValues.get(1));
@@ -215,8 +240,12 @@ public class VcfReader implements Closeable {
 				card.addEmail(new VcfAttributedValue(decodedValues.get(0), reducedPrefixes));
 			} else if (VcfConstants.ADDRESS_PROPERTY.equals(property)) {
 				final List<String> decodedValues = decodeValues(prefixes, values);
-				if (decodedValues.size() != 7) {
-					throw new Exception("Invalid address (" + VcfConstants.ADDRESS_PROPERTY + ") data (must have 7 parts, has " + decodedValues.size() + ") in line " + currentLineNumber);
+				if (decodedValues.size() > 7) {
+					throw new Exception("Invalid address (" + VcfConstants.ADDRESS_PROPERTY + ") data (must have at most 7 parts, has " + decodedValues.size() + ") in line " + currentLineNumber);
+				}
+				while (decodedValues.size() < 7) {
+					// Tolerate missing trailing empty parts, as produced by some real-world vcf exporters
+					decodedValues.add(null);
 				}
 				final List<String> reducedPrefixes = new ArrayList<>();
 				for (final String prefix : prefixes) {
@@ -268,8 +297,11 @@ public class VcfReader implements Closeable {
 				}
 			} else if (VcfConstants.A_ANDROID_CUSTOM_PROPERTY.equals(property)) {
 				// Ignore property
-			} else {
+			} else if (strict) {
 				throw new Exception("Unknown property name '" + property + "' found in line " + currentLineNumber);
+			} else {
+				// Ignore unknown/extension properties (e.g. CATEGORIES, UID, NICKNAME, X-... ) when not in strict mode,
+				// since many real-world vcf exports use properties outside this reader's supported set.
 			}
 		}
 
