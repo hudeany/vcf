@@ -15,7 +15,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import de.soderer.utilities.vcf.utilities.BOM;
 import de.soderer.utilities.vcf.utilities.BOMInputStream;
@@ -179,10 +178,8 @@ public class VcfReader implements Closeable {
 				}
 				card.setFormattedName(decodedValues.get(0));
 			} else if (VcfConstants.ORGANIZATION_PROPERTY.equals(property)) {
-				final List<String> decodedValues = decodeValues(prefixes, values).stream().filter(x -> Utilities.isNotBlank(x)).collect(Collectors.toList());
-				final ArrayList<String> organization = new ArrayList<>();
-				organization.add(Utilities.join(decodedValues, ", "));
-				card.setOrganization(organization);
+				final List<String> decodedValues = decodeValues(prefixes, values);
+				card.setOrganization(new ArrayList<>(decodedValues));
 			} else if (VcfConstants.ROLE_PROPERTY.equals(property)) {
 				final List<String> decodedValues = decodeValues(prefixes, values);
 				if (decodedValues.size() != 1) {

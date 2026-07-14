@@ -153,7 +153,9 @@ public class VcfWriter implements Closeable {
 				values.add(telephoneNumber.getValue());
 
 				final List<String> parametersToSet = new ArrayList<>();
-				parametersToSet.addAll(telephoneNumber.getAttributes());
+				if (telephoneNumber.getAttributes() != null) {
+					parametersToSet.addAll(telephoneNumber.getAttributes());
+				}
 
 				final List<String> additionalParametersToSet = encodeValues(version, values);
 				if (additionalParametersToSet != null) {
@@ -170,7 +172,9 @@ public class VcfWriter implements Closeable {
 				values.add(email.getValue());
 
 				final List<String> parametersToSet = new ArrayList<>();
-				parametersToSet.addAll(email.getAttributes());
+				if (email.getAttributes() != null) {
+					parametersToSet.addAll(email.getAttributes());
+				}
 
 				final List<String> additionalParametersToSet = encodeValues(version, values);
 				if (additionalParametersToSet != null) {
@@ -187,7 +191,9 @@ public class VcfWriter implements Closeable {
 				values.addAll(address.getValues());
 
 				final Set<String> parametersToSet = new HashSet<>();
-				parametersToSet.addAll(address.getAttributes());
+				if (address.getAttributes() != null) {
+					parametersToSet.addAll(address.getAttributes());
+				}
 
 				final List<String> additionalParametersToSet = encodeValues(version, values);
 				if (additionalParametersToSet != null) {
