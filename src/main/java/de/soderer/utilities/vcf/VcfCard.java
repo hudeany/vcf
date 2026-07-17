@@ -20,7 +20,7 @@ import de.soderer.utilities.vcf.utilities.Utilities;
 
 public class VcfCard {
 	/** Separator for lossless (de-)serialization of structured multi-part values (ORG, ADR, attributes) in the Map representation. */
-	private static final String STRUCTURED_VALUE_SEPARATOR = "\u001F";
+	public static final String STRUCTURED_VALUE_SEPARATOR = "\u001F";
 
 	private String lastName = null;
 	private String firstName = null;
