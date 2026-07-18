@@ -1,6 +1,5 @@
 package de.soderer.utilities.vcf.utilities;
 
-import java.sql.Timestamp;
 import java.text.DateFormat;
 import java.text.DateFormatSymbols;
 import java.text.SimpleDateFormat;
@@ -47,11 +46,19 @@ public class DateUtilities {
 	/** DateTime format for ISO 8601 */
 	public static final String ISO_8601_DATETIME_FORMAT_NO_TIMEZONE = "yyyy-MM-dd'T'HH:mm:ss";
 	/** DateTime format for ISO 8601 */
-	public static final String ISO_8601_DATETIME_WITH_NANOS_FORMAT_NO_TIMEZONE = "yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSS";
+	public static final String ISO_8601_DATETIME_WITH_NANOS_FORMAT_NO_TIMEZONE = "yyyy-MM-dd'T'HH:mm:ss[.n]";
 	/** DateTime format for ISO 8601 */
 	public static final String ISO_8601_DATETIME_FORMAT = "yyyy-MM-dd'T'HH:mm:ssX";
 	/** DateTime format for ISO 8601 */
-	public static final String ISO_8601_DATETIME_WITH_NANOS_FORMAT = "yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSSX";
+	public static final String ISO_8601_DATETIME_WITH_NANOS_FORMAT = "yyyy-MM-dd'T'HH:mm:ss[.n]X";
+	/** DateTime format for ISO 8601 */
+	public static final String ISO_8601_TIME_FORMAT_NO_TIMEZONE = "HH:mm:ss";
+	/** DateTime format for ISO 8601 */
+	public static final String ISO_8601_TIME_WITH_NANOS_FORMAT_NO_TIMEZONE = "HH:mm:ss.SSSSSSSSS";
+	/** DateTime format for ISO 8601 */
+	public static final String ISO_8601_TIME_FORMAT = "HH:mm:ssX";
+	/** DateTime format for ISO 8601 */
+	public static final String ISO_8601_TIME_WITH_NANOS_FORMAT = "HH:mm:ss.SSSSSSSSSX";
 
 	/** ANSI SQL standard date time format */
 	public static final String ANSI_SQL_DATETIME_FORMAT = "yyyy-MM-dd HH:mm:ss";
@@ -97,34 +104,6 @@ public class DateUtilities {
 	}
 
 	/**
-	 * Format a timestamp (Nanos in .Net format)
-	 *
-	 * @param ts
-	 *            a Timestamp
-	 * @return a String in format 'yyyy-mm-dd HH:MM:SS.NNNNNN'
-	 */
-	public static String formatTimestamp_yyyyMMdd_HHmmssNNNNNN(final Timestamp ts) {
-		String returnString = "";
-
-		if (ts != null) {
-			final String s = DateTimeFormatter.ofPattern(YYYY_MM_DD_HHMMSS).format(DateUtilities.getLocalDateForDate(ts));
-			String nanosString = Integer.toString(ts.getNanos());
-
-			if (nanosString.length() > 6) {
-				nanosString = nanosString.substring(0, 6);
-			} else {
-				while (nanosString.length() < 6) {
-					nanosString += "0";
-				}
-			}
-
-			returnString = s + nanosString;
-		}
-
-		return returnString;
-	}
-
-	/**
 	 * Format a timestampString from format "dd.MM.yyyy" or "dd-MM-yyyy" to "yyyy-MM-dd"
 	 *
 	 * @param ddMMyyyyString
@@ -145,20 +124,24 @@ public class DateUtilities {
 	}
 
 	public static String replaceDatePatternInString(final String stringWithPattern, final LocalDateTime localDateTime) {
-		String returnString = stringWithPattern;
-		returnString = returnString.replace("[yyyy]", String.format("%04d", localDateTime.getYear()));
-		returnString = returnString.replace("[YYYY]", String.format("%04d", localDateTime.getYear()));
-		returnString = returnString.replace("[MM]", String.format("%02d", localDateTime.getMonthValue()));
-		returnString = returnString.replace("[dd]", String.format("%02d", localDateTime.getDayOfMonth()));
-		returnString = returnString.replace("[DD]", String.format("%02d", localDateTime.getDayOfMonth()));
-		returnString = returnString.replace("[HH]", String.format("%02d", localDateTime.getHour()));
-		returnString = returnString.replace("[hh]", String.format("%02d", localDateTime.getHour()));
-		returnString = returnString.replace("[mm]", String.format("%02d", localDateTime.getMinute()));
-		returnString = returnString.replace("[SS]", String.format("%02d", localDateTime.getSecond()));
-		returnString = returnString.replace("[ss]", String.format("%02d", localDateTime.getSecond()));
-		returnString = returnString.replace("\\[", "[");
-		returnString = returnString.replace("\\]", "]");
-		return returnString;
+		if (stringWithPattern == null) {
+			return null;
+		} else {
+			String returnString = stringWithPattern;
+			returnString = returnString.replace("[yyyy]", String.format("%04d", localDateTime.getYear()));
+			returnString = returnString.replace("[YYYY]", String.format("%04d", localDateTime.getYear()));
+			returnString = returnString.replace("[MM]", String.format("%02d", localDateTime.getMonthValue()));
+			returnString = returnString.replace("[dd]", String.format("%02d", localDateTime.getDayOfMonth()));
+			returnString = returnString.replace("[DD]", String.format("%02d", localDateTime.getDayOfMonth()));
+			returnString = returnString.replace("[HH]", String.format("%02d", localDateTime.getHour()));
+			returnString = returnString.replace("[hh]", String.format("%02d", localDateTime.getHour()));
+			returnString = returnString.replace("[mm]", String.format("%02d", localDateTime.getMinute()));
+			returnString = returnString.replace("[SS]", String.format("%02d", localDateTime.getSecond()));
+			returnString = returnString.replace("[ss]", String.format("%02d", localDateTime.getSecond()));
+			returnString = returnString.replace("\\[", "[");
+			returnString = returnString.replace("\\]", "]");
+			return returnString;
+		}
 	}
 
 	public static LocalDateTime calculateETA(final LocalDateTime start, final long itemsToDo, final long itemsDone) {
@@ -360,12 +343,12 @@ public class DateUtilities {
 	 * @return
 	 */
 	public static String getDuration(final Calendar startTime, final Calendar endTime) {
-		final int durationInMilliSeconds = (int) (endTime.getTimeInMillis() - startTime.getTimeInMillis());
-		final int milliSecondsPart = durationInMilliSeconds % 1000;
-		final int secondsPart = durationInMilliSeconds / 1000 % 60;
-		final int minutesPart = durationInMilliSeconds / 1000 / 60 % 60;
-		final int hoursPart = durationInMilliSeconds / 1000 / 60 / 60 % 24;
-		final int days = durationInMilliSeconds / 1000 / 60 / 60 % 24;
+		final long durationInMilliSeconds = endTime.getTimeInMillis() - startTime.getTimeInMillis();
+		final long milliSecondsPart = durationInMilliSeconds % 1000;
+		final long secondsPart = durationInMilliSeconds / 1000 % 60;
+		final long minutesPart = durationInMilliSeconds / 1000 / 60 % 60;
+		final long hoursPart = durationInMilliSeconds / 1000 / 60 / 60 % 24;
+		final long days = durationInMilliSeconds / 1000 / 60 / 60 / 24;
 
 		String returnString = milliSecondsPart + "ms";
 		if (secondsPart > 0) {
@@ -408,7 +391,7 @@ public class DateUtilities {
 	 */
 	public static boolean dayListIncludes(final List<LocalDate> listOfDays, final LocalDate day) {
 		for (final LocalDate listDay : listOfDays) {
-			if (listDay.getDayOfYear() == day.getDayOfYear()) {
+			if (listDay.isEqual(day)) {
 				return true;
 			}
 		}
@@ -530,6 +513,10 @@ public class DateUtilities {
 		return Date.from(zonedDateTime.withZoneSameInstant(ZoneId.systemDefault()).toInstant());
 	}
 
+	public static ZonedDateTime getZonedDateTimeForDate(final Date date) {
+		return date.toInstant().atZone(ZoneId.systemDefault());
+	}
+
 	/**
 	 * Parse DateTime strings for ISO 8601
 	 *
@@ -568,47 +555,21 @@ public class DateUtilities {
 		if (dateValueString.contains("T")) {
 			if (dateValueString.contains(".")) {
 				if (hasTimezone) {
-					if (dateValueString.substring(dateValueString.indexOf(".")).length() > 13 ) {
-						// Date with time and nanoseconds
-						final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSSSSSSSSXXXXX");
-						dateTimeFormatter.withResolverStyle(ResolverStyle.STRICT);
-						return ZonedDateTime.parse(dateValueString, dateTimeFormatter);
-					} else if (dateValueString.substring(dateValueString.indexOf(".")).length() > 10 ) {
-						// Date with time and fractals
-						final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSSSSSXXXXX");
-						dateTimeFormatter.withResolverStyle(ResolverStyle.STRICT);
-						return ZonedDateTime.parse(dateValueString, dateTimeFormatter);
-					} else {
-						// Date with time and milliseconds
-						final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSSXXXXX");
-						dateTimeFormatter.withResolverStyle(ResolverStyle.STRICT);
-						return ZonedDateTime.parse(dateValueString, dateTimeFormatter);
-					}
+					// Date with time and partial seconds
+					final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss[.n]XXXXX").withResolverStyle(ResolverStyle.STRICT);
+					return ZonedDateTime.parse(dateValueString, dateTimeFormatter);
 				} else {
-					if (dateValueString.substring(dateValueString.indexOf(".")).length() > 7 ) {
-						// Date with time and nanoseconds
-						final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSSSSSSSS");
-						return LocalDateTime.parse(dateValueString, dateTimeFormatter).atZone(defaultZoneId);
-					} else if (dateValueString.substring(dateValueString.indexOf(".")).length() > 4 ) {
-						// Date with time and fractals
-						final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSSSSS");
-						return LocalDateTime.parse(dateValueString, dateTimeFormatter).atZone(defaultZoneId);
-					} else {
-						// Date with time and milliseconds
-						final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSS");
-						dateTimeFormatter.withResolverStyle(ResolverStyle.STRICT);
-						return LocalDateTime.parse(dateValueString, dateTimeFormatter).atZone(defaultZoneId);
-					}
+					// Date with time and milliseconds
+					final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss[.n]").withResolverStyle(ResolverStyle.STRICT);
+					return LocalDateTime.parse(dateValueString, dateTimeFormatter).atZone(defaultZoneId);
 				}
 			} else {
 				// Date with time
 				if (hasTimezone) {
-					final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
-					dateTimeFormatter.withResolverStyle(ResolverStyle.STRICT);
+					final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME.withResolverStyle(ResolverStyle.STRICT);
 					return ZonedDateTime.parse(dateValueString, dateTimeFormatter);
 				} else {
-					final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
-					dateTimeFormatter.withResolverStyle(ResolverStyle.STRICT);
+					final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME.withResolverStyle(ResolverStyle.STRICT);
 					return LocalDateTime.parse(dateValueString, dateTimeFormatter).atZone(defaultZoneId);
 				}
 			}
@@ -620,19 +581,17 @@ public class DateUtilities {
 				} else {
 					dateValueString = replaceLast(dateValueString, "-", "T00:00:00-");
 				}
-				final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
-				dateTimeFormatter.withResolverStyle(ResolverStyle.STRICT);
+				final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME.withResolverStyle(ResolverStyle.STRICT);
 				return ZonedDateTime.parse(dateValueString, dateTimeFormatter);
 			} else {
 				dateValueString = dateValueString + "T00:00:00";
-				final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
-				dateTimeFormatter.withResolverStyle(ResolverStyle.STRICT);
+				final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME.withResolverStyle(ResolverStyle.STRICT);
 				return LocalDateTime.parse(dateValueString, dateTimeFormatter).atZone(defaultZoneId);
 			}
 		}
 	}
 
-	public static String replaceLast(final String text, final String searchText, final String replacement) {
+	private static String replaceLast(final String text, final String searchText, final String replacement) {
 		return text.replaceFirst("(?s)" + Pattern.quote(searchText) + "(?!.*?" + Pattern.quote(searchText) + ")", replacement);
 	}
 
@@ -735,15 +694,15 @@ public class DateUtilities {
 	}
 
 	public static DateTimeFormatter getDateFormatter(final Locale locale) {
-		final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(getDateFormatPattern(locale));
-		dateTimeFormatter.withResolverStyle(ResolverStyle.STRICT);
+		DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(getDateFormatPattern(locale).replace("yyyy", "uuuu"));
+		dateTimeFormatter = dateTimeFormatter.withResolverStyle(ResolverStyle.STRICT);
 		return dateTimeFormatter;
 	}
 
 	public static DateTimeFormatter getDateFormatter(final Locale locale, final ZoneId zoneId) {
-		final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(getDateFormatPattern(locale));
-		dateTimeFormatter.withResolverStyle(ResolverStyle.STRICT);
-		dateTimeFormatter.withZone(zoneId);
+		DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(getDateFormatPattern(locale).replace("yyyy", "uuuu"));
+		dateTimeFormatter = dateTimeFormatter.withResolverStyle(ResolverStyle.STRICT);
+		dateTimeFormatter = dateTimeFormatter.withZone(zoneId);
 		return dateTimeFormatter;
 	}
 
@@ -761,28 +720,28 @@ public class DateUtilities {
 	}
 
 	public static DateTimeFormatter getDateTimeFormatter(final Locale locale) {
-		final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(getDateTimeFormatPattern(locale));
-		dateTimeFormatter.withResolverStyle(ResolverStyle.STRICT);
+		DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(getDateTimeFormatPattern(locale).replace("yyyy", "uuuu"));
+		dateTimeFormatter = dateTimeFormatter.withResolverStyle(ResolverStyle.STRICT);
 		return dateTimeFormatter;
 	}
 
 	public static DateTimeFormatter getDateTimeFormatter(final Locale locale, final ZoneId zoneId) {
-		final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(getDateTimeFormatPattern(locale));
-		dateTimeFormatter.withResolverStyle(ResolverStyle.STRICT);
-		dateTimeFormatter.withZone(zoneId);
+		DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(getDateTimeFormatPattern(locale).replace("yyyy", "uuuu"));
+		dateTimeFormatter = dateTimeFormatter.withResolverStyle(ResolverStyle.STRICT);
+		dateTimeFormatter = dateTimeFormatter.withZone(zoneId);
 		return dateTimeFormatter;
 	}
 
 	public static DateTimeFormatter getDateTimeFormatterWithSeconds(final Locale locale) {
-		final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(getDateTimeFormatWithSecondsPattern(locale));
-		dateTimeFormatter.withResolverStyle(ResolverStyle.STRICT);
+		DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(getDateTimeFormatWithSecondsPattern(locale).replace("yyyy", "uuuu"));
+		dateTimeFormatter = dateTimeFormatter.withResolverStyle(ResolverStyle.STRICT);
 		return dateTimeFormatter;
 	}
 
 	public static DateTimeFormatter getDateTimeFormatterWithSeconds(final Locale locale, final ZoneId zoneId) {
-		final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(getDateTimeFormatPattern(locale));
-		dateTimeFormatter.withResolverStyle(ResolverStyle.STRICT);
-		dateTimeFormatter.withZone(zoneId);
+		DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(getDateTimeFormatWithSecondsPattern(locale).replace("yyyy", "uuuu"));
+		dateTimeFormatter = dateTimeFormatter.withResolverStyle(ResolverStyle.STRICT);
+		dateTimeFormatter = dateTimeFormatter.withZone(zoneId);
 		return dateTimeFormatter;
 	}
 
@@ -798,7 +757,7 @@ public class DateUtilities {
 		if (date == null) {
 			return null;
 		} else {
-			return DateTimeFormatter.ofPattern(format).format(getLocalDateTimeForDate(date));
+			return DateTimeFormatter.ofPattern(format).format(getLocalDateTimeForDate(date).atZone(ZoneId.systemDefault()));
 		}
 	}
 
@@ -815,6 +774,14 @@ public class DateUtilities {
 			return null;
 		} else {
 			return DateTimeFormatter.ofPattern(format).format(date);
+		}
+	}
+
+	public static String formatDate(final String format, final LocalTime time) {
+		if (time == null) {
+			return null;
+		} else {
+			return DateTimeFormatter.ofPattern(format).format(time);
 		}
 	}
 
@@ -846,7 +813,7 @@ public class DateUtilities {
 		if (date == null) {
 			return null;
 		} else {
-			return DateTimeFormatter.ofPattern(format).withZone(zoneId).format(getLocalDateTimeForDate(date));
+			return DateTimeFormatter.ofPattern(format).withZone(zoneId).format(getLocalDateTimeForDate(date).atZone(ZoneId.systemDefault()));
 		}
 	}
 
@@ -872,10 +839,22 @@ public class DateUtilities {
 		return localDate;
 	}
 
+	public static LocalDate parseStrictLocalDate(final String dateFormatPattern, final String dateString) {
+		final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(dateFormatPattern.replace("yyyy", "uuuu")).withResolverStyle(ResolverStyle.STRICT);
+		final LocalDate localDate = LocalDate.parse(dateString, dateTimeFormatter);
+		return localDate;
+	}
+
 	public static LocalDateTime parseLocalDateTime(final String dateTimeFormatPattern, final String dateTimeString) {
 		final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(dateTimeFormatPattern);
 		final LocalDateTime localDateTime = LocalDateTime.parse(dateTimeString, dateTimeFormatter);
 		return localDateTime;
+	}
+
+	public static LocalTime parseLocalTime(final String timeFormatPattern, final String timeString) {
+		final DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern(timeFormatPattern).withResolverStyle(ResolverStyle.STRICT);
+		final LocalTime localTime = LocalTime.parse(timeString, timeFormatter);
+		return localTime;
 	}
 
 	public static Date parseDateTime(final String format, final String dateTimeString) {
@@ -885,22 +864,22 @@ public class DateUtilities {
 	}
 
 	public static Date parseDateTime(final String format, final String dateTimeString, final TimeZone timeZone) {
-		final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(format);
-		dateTimeFormatter.withZone(timeZone.toZoneId());
+		DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(format);
+		dateTimeFormatter = dateTimeFormatter.withZone(timeZone.toZoneId());
 		final LocalDateTime localDateTime = LocalDateTime.parse(dateTimeString, dateTimeFormatter);
 		return getDateForLocalDateTime(localDateTime);
 	}
 
 	public static Date parseDateTime(final String format, final String dateTimeString, final ZoneId zoneId) {
-		final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(format);
-		dateTimeFormatter.withZone(zoneId);
+		DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(format);
+		dateTimeFormatter = dateTimeFormatter.withZone(zoneId);
 		final LocalDateTime localDateTime = LocalDateTime.parse(dateTimeString, dateTimeFormatter);
 		return getDateForLocalDateTime(localDateTime);
 	}
 
 	public static ZonedDateTime parseZonedDateTime(final String format, final String dateTimeString, final ZoneId zoneId) {
-		final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(format);
-		dateTimeFormatter.withZone(zoneId);
+		DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(format);
+		dateTimeFormatter = dateTimeFormatter.withZone(zoneId);
 		final ZonedDateTime zonedDateTime = ZonedDateTime.parse(dateTimeString, dateTimeFormatter);
 		return zonedDateTime;
 	}
@@ -946,5 +925,9 @@ public class DateUtilities {
 
 	public static LocalDate getLocalDateFor1970Millis(final long date1970Millis) {
 		return getLocalDateForDate(new Date(date1970Millis));
+	}
+
+	public static String formatZonedDateTimeWithZuluTimezone(final ZonedDateTime zonedDateTime) {
+		return DateUtilities.formatDate(DateUtilities.ISO_8601_DATETIME_FORMAT, zonedDateTime.withZoneSameInstant(ZoneId.of("UTC")));
 	}
 }
