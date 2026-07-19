@@ -52,12 +52,22 @@ public class VcfCard {
 		this.lastName = lastName;
 	}
 
+	public VcfCard withLastName(final String newLastName) {
+		setLastName(newLastName);
+		return this;
+	}
+
 	public String getFirstName() {
 		return firstName;
 	}
 
 	public void setFirstName(final String firstName) {
 		this.firstName = firstName;
+	}
+
+	public VcfCard withFirstName(final String newFirstName) {
+		setFirstName(newFirstName);
+		return this;
 	}
 
 	public String getAdditionalFirstName() {
@@ -68,12 +78,22 @@ public class VcfCard {
 		this.additionalFirstName = additionalFirstName;
 	}
 
+	public VcfCard withAdditionalFirstName(final String newAdditionalFirstName) {
+		setAdditionalFirstName(newAdditionalFirstName);
+		return this;
+	}
+
 	public String getNamePrefix() {
 		return namePrefix;
 	}
 
 	public void setNamePrefix(final String namePrefix) {
 		this.namePrefix = namePrefix;
+	}
+
+	public VcfCard withNamePrefix(final String newNamePrefix) {
+		setNamePrefix(newNamePrefix);
+		return this;
 	}
 
 	public String getNameSuffix() {
@@ -84,12 +104,22 @@ public class VcfCard {
 		this.nameSuffix = nameSuffix;
 	}
 
+	public VcfCard withNameSuffix(final String newNameSuffix) {
+		setNameSuffix(newNameSuffix);
+		return this;
+	}
+
 	public String getFormattedName() {
 		return formattedName;
 	}
 
 	public void setFormattedName(final String formattedName) {
 		this.formattedName = formattedName;
+	}
+
+	public VcfCard withFormattedName(final String newFormattedName) {
+		setFormattedName(newFormattedName);
+		return this;
 	}
 
 	public List<String> getOrganization() {
@@ -100,12 +130,22 @@ public class VcfCard {
 		this.organization = organization;
 	}
 
+	public VcfCard withOrganization(final List<String> newOrganization) {
+		setOrganization(newOrganization);
+		return this;
+	}
+
 	public String getRole() {
 		return role;
 	}
 
 	public void setRole(final String role) {
 		this.role = role;
+	}
+
+	public VcfCard withRole(final String newRole) {
+		setRole(newRole);
+		return this;
 	}
 
 	public String getTitle() {
@@ -116,12 +156,22 @@ public class VcfCard {
 		this.title = title;
 	}
 
+	public VcfCard withTitle(final String newTitle) {
+		setTitle(newTitle);
+		return this;
+	}
+
 	public String getPhotoUrl() {
 		return photoUrl;
 	}
 
 	public void setPhotoUrl(final String photoUrl) {
 		this.photoUrl = photoUrl;
+	}
+
+	public VcfCard withPhotoUrl(final String newPhotoUrl) {
+		setPhotoUrl(newPhotoUrl);
+		return this;
 	}
 
 	public byte[] getPhotoData() {
@@ -132,24 +182,32 @@ public class VcfCard {
 		this.photoData = photoData;
 	}
 
-	public void addTelephoneNumber(final VcfAttributedValue telephoneNumber) {
+	public VcfCard withPhotoData(final byte[] newPhotoData) {
+		setPhotoData(newPhotoData);
+		return this;
+	}
+
+	public VcfCard addTelephoneNumber(final VcfAttributedValue telephoneNumber) {
 		telephoneNumbers.add(telephoneNumber);
+		return this;
 	}
 
 	public List<VcfAttributedValue> getTelephoneNumbers() {
 		return telephoneNumbers;
 	}
 
-	public void addAddress(final VcfAttributedAddress address) {
+	public VcfCard addAddress(final VcfAttributedAddress address) {
 		addresses.add(address);
+		return this;
 	}
 
 	public List<VcfAttributedAddress> getAddresses() {
 		return addresses;
 	}
 
-	public void addEmail(final VcfAttributedValue email) {
+	public VcfCard addEmail(final VcfAttributedValue email) {
 		emails.add(email);
+		return this;
 	}
 
 	public List<VcfAttributedValue> getEmails() {
@@ -164,12 +222,22 @@ public class VcfCard {
 		this.latestUpdate = latestUpdate;
 	}
 
+	public VcfCard withLatestUpdate(final ZonedDateTime newLatestUpdate) {
+		setLatestUpdate(newLatestUpdate);
+		return this;
+	}
+
 	public String getUrl() {
 		return url;
 	}
 
 	public void setUrl(final String url) {
 		this.url = url;
+	}
+
+	public VcfCard withUrl(final String newUrl) {
+		setUrl(newUrl);
+		return this;
 	}
 
 	public String getNote() {
@@ -180,6 +248,11 @@ public class VcfCard {
 		this.note = note;
 	}
 
+	public VcfCard withNote(final String newNote) {
+		setNote(newNote);
+		return this;
+	}
+
 	public MonthDay getBirthday() {
 		return birthday;
 	}
@@ -188,12 +261,22 @@ public class VcfCard {
 		this.birthday = birthday;
 	}
 
+	public VcfCard withBirthday(final MonthDay newBirthday) {
+		setBirthday(newBirthday);
+		return this;
+	}
+
 	public Year getBirthyear() {
 		return birthyear;
 	}
 
 	public void setBirthyear(final Year birthyear) {
 		this.birthyear = birthyear;
+	}
+
+	public VcfCard withBirthyear(final Year newBirthyear) {
+		setBirthyear(newBirthyear);
+		return this;
 	}
 
 	public static Map<String, Object> toMap(final VcfCard vcfCard) {

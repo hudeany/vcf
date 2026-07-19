@@ -65,8 +65,12 @@ public class VcfReader implements Closeable {
 		return strict;
 	}
 
-	public VcfReader setStrict(final boolean strict) {
+	public void setStrict(final boolean strict) {
 		this.strict = strict;
+	}
+
+	public VcfReader withStrict(final boolean newStrict) {
+		setStrict(newStrict);
 		return this;
 	}
 

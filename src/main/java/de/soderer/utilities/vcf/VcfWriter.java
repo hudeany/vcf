@@ -61,6 +61,11 @@ public class VcfWriter implements Closeable {
 		}
 	}
 
+	public VcfWriter withDefaultVersion(final String newDefaultVersion) throws Exception {
+		setDefaultVersion(newDefaultVersion);
+		return this;
+	}
+
 	public void writeCard(final VcfCard card) throws Exception {
 		writeCard(card, defaultVersion);
 	}
