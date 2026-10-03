@@ -107,7 +107,8 @@ public class DateUtilities {
 	 * Format a timestampString from format "dd.MM.yyyy" or "dd-MM-yyyy" to "yyyy-MM-dd"
 	 *
 	 * @param ddMMyyyyString
-	 * @return
+	 *            date string in format "dd.MM.yyyy" or "dd-MM-yyyy"
+	 * @return date string in format "yyyy-MM-dd"
 	 */
 	public static String convert_ddMMyyyy_to_yyyyMMdd(final String ddMMyyyyString) {
 		return ddMMyyyyString.substring(6, 10) + "-" + ddMMyyyyString.substring(3, 5) + "-" + ddMMyyyyString.substring(0, 2);
@@ -116,8 +117,9 @@ public class DateUtilities {
 	/**
 	 * Format a timestampString from format "yyyy-MM-dd" or "yyyy.MM.dd" to "dd.MM.yyyy"
 	 *
-	 * @param ddMMyyyyString
-	 * @return
+	 * @param yyyyMMddString
+	 *            date string in format "yyyy-MM-dd" or "yyyy.MM.dd"
+	 * @return date string in format "dd.MM.yyyy"
 	 */
 	public static String convert_yyyyMMdd_to_ddMMyyyy(final String yyyyMMddString) {
 		return yyyyMMddString.substring(8, 10) + "." + yyyyMMddString.substring(5, 7) + "." + yyyyMMddString.substring(0, 4);
@@ -339,8 +341,10 @@ public class DateUtilities {
 	 * Get the duration between two timestamps as a string
 	 *
 	 * @param startTime
+	 *            start of the duration
 	 * @param endTime
-	 * @return
+	 *            end of the duration
+	 * @return duration like "1d 2h 3m 4s 5ms", leading parts with value 0 are omitted
 	 */
 	public static String getDuration(final Calendar startTime, final Calendar endTime) {
 		final long durationInMilliSeconds = endTime.getTimeInMillis() - startTime.getTimeInMillis();
@@ -376,7 +380,8 @@ public class DateUtilities {
 	 * Remove the time part of a GregorianCalendar
 	 *
 	 * @param value
-	 * @return
+	 *            calendar with date and time
+	 * @return new calendar with the same day at 00:00:00
 	 */
 	public static GregorianCalendar getDayWithoutTime(final GregorianCalendar value) {
 		return new GregorianCalendar(value.get(Calendar.YEAR), value.get(Calendar.MONTH), value.get(Calendar.DAY_OF_MONTH));
@@ -386,8 +391,10 @@ public class DateUtilities {
 	 * Check if a day is included in a list of days
 	 *
 	 * @param listOfDays
+	 *            days to search in
 	 * @param day
-	 * @return
+	 *            day to search for
+	 * @return true if the list contains the day
 	 */
 	public static boolean dayListIncludes(final List<LocalDate> listOfDays, final LocalDate day) {
 		for (final LocalDate listDay : listOfDays) {
@@ -518,10 +525,12 @@ public class DateUtilities {
 	}
 
 	/**
-	 * Parse DateTime strings for ISO 8601
+	 * Parse DateTime strings for ISO 8601.
+	 * Values without time zone are interpreted in the system default time zone.
 	 *
 	 * @param dateValue
-	 * @return
+	 *            date or datetime string in ISO 8601 format
+	 * @return parsed datetime, or null for an empty value
 	 */
 	public static ZonedDateTime parseIso8601DateTimeString(final String dateValue) {
 		return parseIso8601DateTimeString(dateValue, ZoneId.systemDefault());
@@ -531,7 +540,10 @@ public class DateUtilities {
 	 * Parse DateTime strings for ISO 8601
 	 *
 	 * @param dateValueString
-	 * @return
+	 *            date or datetime string in ISO 8601 format
+	 * @param defaultZoneId
+	 *            time zone for values without time zone information
+	 * @return parsed datetime, or null for an empty value
 	 */
 	public static ZonedDateTime parseIso8601DateTimeString(String dateValueString, final ZoneId defaultZoneId) {
 		if (Utilities.isBlank(dateValueString)) {
@@ -577,9 +589,9 @@ public class DateUtilities {
 			// Date only
 			if (hasTimezone) {
 				if (dateValueString.contains("+")) {
-					dateValueString = replaceLast(dateValueString, "+", "T00:00:00+");
+					dateValueString = TextUtilities.replaceLast(dateValueString, "+", "T00:00:00+");
 				} else {
-					dateValueString = replaceLast(dateValueString, "-", "T00:00:00-");
+					dateValueString = TextUtilities.replaceLast(dateValueString, "-", "T00:00:00-");
 				}
 				final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME.withResolverStyle(ResolverStyle.STRICT);
 				return ZonedDateTime.parse(dateValueString, dateTimeFormatter);
@@ -591,14 +603,12 @@ public class DateUtilities {
 		}
 	}
 
-	private static String replaceLast(final String text, final String searchText, final String replacement) {
-		return text.replaceFirst("(?s)" + Pattern.quote(searchText) + "(?!.*?" + Pattern.quote(searchText) + ")", replacement);
-	}
-
 	/**
-	 * Get the ordinal of occurence of the given weekdy in its month
+	 * Get the ordinal of occurrence of the weekday of the given day in its month
+	 *
 	 * @param dayOfMonth
-	 * @return
+	 *            day of month (1 - 31)
+	 * @return ordinal of the weekday in its month (1 - 5), e.g. 2 for the second monday
 	 */
 	public static int getNumberOfWeekdayInMonth(final int dayOfMonth) {
 		final float ordinalFloat = dayOfMonth / 7.0f;
@@ -887,6 +897,12 @@ public class DateUtilities {
 	/**
 	 * OpenJDK 15+ doesn't recognize german three letter months by "MMM" in SimpleDateFormat anymore.
 	 * So here is a helper to cope with that problem.
+	 *
+	 * @param threeLetterMonth
+	 *            english or german three letter month name, case insensitive (e.g. "Mar" or "MÄR")
+	 * @return month number (1 - 12)
+	 * @throws Exception
+	 *             if the month name is unknown
 	 */
 	public static int parseThreeLetterMonth(final String threeLetterMonth) throws Exception {
 		switch(threeLetterMonth.toUpperCase()) {

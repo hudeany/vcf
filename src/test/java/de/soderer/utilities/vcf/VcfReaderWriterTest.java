@@ -1,5 +1,9 @@
 package de.soderer.utilities.vcf;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.fail;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -7,8 +11,7 @@ import java.io.FileOutputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import de.soderer.utilities.vcf.utilities.BOMInputStream;
 
@@ -43,7 +46,7 @@ public class VcfReaderWriterTest {
 				}
 			} catch (final Exception e) {
 				e.printStackTrace();
-				Assert.fail(e.getMessage());
+				fail(e.getMessage());
 			}
 
 			try (BufferedReader readerOriginal = new BufferedReader(new InputStreamReader(new BOMInputStream(new FileInputStream(testfile)).skipBOM(), StandardCharsets.UTF_8));
@@ -54,8 +57,11 @@ public class VcfReaderWriterTest {
 				while ((nextLineOriginal = readerOriginal.readLine()) != null) {
 					nextLineTest = readerTest.readLine();
 					line++;
-					Assert.assertEquals("Unexpected data in line " + line, nextLineOriginal, nextLineTest);
+					// JUnit 5 expects the message as last parameter (JUnit 4 had it first)
+					assertEquals(nextLineOriginal, nextLineTest, "Unexpected data in line " + line);
 				}
+				// The written file must not contain more lines than the original
+				assertNull(readerTest.readLine(), "Unexpected additional data after line " + line);
 			}
 		} finally {
 			if (tempFile != null && tempFile.exists()) {
