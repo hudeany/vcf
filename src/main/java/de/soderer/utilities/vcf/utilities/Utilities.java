@@ -1,14 +1,9 @@
 package de.soderer.utilities.vcf.utilities;
 
-import java.io.IOException;
-import java.io.Reader;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
-import java.util.List;
 import java.util.Locale;
-import java.util.regex.Pattern;
 
 /**
  * General helper methods.

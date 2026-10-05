@@ -2,15 +2,11 @@ package de.soderer.utilities.vcf.utilities;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
-import java.util.Date;
-import java.util.Locale;
 
 /**
  * Date and time helper methods.
