@@ -1,6 +1,15 @@
 package de.soderer.utilities.vcf;
 
+/**
+ * Names of vCard properties and markers.
+ */
 public class VcfConstants {
+	/**
+	 * Constants class, not to be instantiated.
+	 */
+	private VcfConstants() {
+	}
+
 	static final String BEGIN_VCARD = "BEGIN:VCARD";
 	static final String END_VCARD = "END:VCARD";
 

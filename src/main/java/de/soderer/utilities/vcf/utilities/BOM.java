@@ -37,7 +37,9 @@ public final class BOM {
 	 */
 	public static final BOM UTF_32_BE = new BOM(new byte[] { (byte) 0x00, (byte) 0x00, (byte) 0xFE, (byte) 0xFF }, "UTF-32 big-endian");
 
+	/** The bytes of the byte order mark. */
 	final byte bytes[];
+	/** Description of the byte order mark. */
 	private final String description;
 
 	private BOM(final byte bom[], final String description) {
@@ -45,6 +47,11 @@ public final class BOM {
 		this.description = description;
 	}
 
+	/**
+	 * Returns the bytes of the byte order mark.
+	 *
+	 * @return a copy of the bytes, empty for {@link #NONE}
+	 */
 	public byte[] getBytes() {
 		final int length = bytes.length;
 		final byte[] result = new byte[length];
@@ -52,6 +59,9 @@ public final class BOM {
 		return result;
 	}
 
+	/**
+	 * Returns the description, e.g. "UTF-8".
+	 */
 	@Override
 	public String toString() {
 		return description;

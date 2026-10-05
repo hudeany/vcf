@@ -10,7 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -20,20 +20,43 @@ import de.soderer.utilities.vcf.utilities.QuotedPrintableCodec;
 import de.soderer.utilities.vcf.utilities.Utilities;
 
 /**
- * Writer for vcf (vCard file) format
+ * Writer for vcf (vCard file) format, versions 2.1, 3.0 and 4.0
+ * <p>
+ * Version 2.1 values with non ASCII characters or linebreaks are quoted printable encoded, version
+ * 3.0 and 4.0 values are written in UTF-8 with backslash escapes.
+ * </p>
  *
  * See: https://de.wikipedia.org/wiki/VCard#Eigenschaften
  */
 public class VcfWriter implements Closeable {
+	/**
+	 * Version used by {@link #writeCard(VcfCard)}.
+	 */
 	private String defaultVersion = "2.1";
 
 	/** Number of cards written until now. */
 	private int writtenCards = 0;
 
+	/**
+	 * Number of lines written until now.
+	 */
 	private int writtenLines = 0;
 
+	/**
+	 * Writer of the output data.
+	 */
 	private BufferedWriter bufferedWriter = null;
 
+	/**
+	 * Creates a writer using UTF-8 encoding.
+	 *
+	 * @param outputStream
+	 *            the stream to write to
+	 * @param writeUtf8BOM
+	 *            true to write a UTF-8 byte order mark first
+	 * @throws Exception
+	 *             if writing the byte order mark fails
+	 */
 	public VcfWriter(final OutputStream outputStream, final boolean writeUtf8BOM) throws Exception {
 		if (writeUtf8BOM) {
 			outputStream.write(BOM.UTF_8.getBytes());
@@ -41,14 +64,35 @@ public class VcfWriter implements Closeable {
 		bufferedWriter = new BufferedWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8));
 	}
 
+	/**
+	 * Creates a writer. Versions 3.0 and 4.0 require UTF-8.
+	 *
+	 * @param outputStream
+	 *            the stream to write to
+	 * @param charset
+	 *            the encoding
+	 */
 	public VcfWriter(final OutputStream outputStream, final Charset charset) {
 		bufferedWriter = new BufferedWriter(new OutputStreamWriter(outputStream, charset));
 	}
 
+	/**
+	 * Returns the version used by {@link #writeCard(VcfCard)}.
+	 *
+	 * @return the version, "2.1" by default
+	 */
 	public String getDefaultVersion() {
 		return defaultVersion;
 	}
 
+	/**
+	 * Sets the version used by {@link #writeCard(VcfCard)}.
+	 *
+	 * @param defaultVersion
+	 *            "2.1", "3.0" or "4.0"
+	 * @throws Exception
+	 *             if the version is not supported
+	 */
 	public void setDefaultVersion(final String defaultVersion) throws Exception {
 		if ("2.1".equals(defaultVersion)) {
 			this.defaultVersion = defaultVersion;
@@ -61,15 +105,42 @@ public class VcfWriter implements Closeable {
 		}
 	}
 
+	/**
+	 * Sets the version used by {@link #writeCard(VcfCard)}.
+	 *
+	 * @param newDefaultVersion
+	 *            "2.1", "3.0" or "4.0"
+	 * @return this writer for chaining
+	 * @throws Exception
+	 *             if the version is not supported
+	 */
 	public VcfWriter withDefaultVersion(final String newDefaultVersion) throws Exception {
 		setDefaultVersion(newDefaultVersion);
 		return this;
 	}
 
+	/**
+	 * Writes a card in the default version.
+	 *
+	 * @param card
+	 *            the card
+	 * @throws Exception
+	 *             if writing fails
+	 */
 	public void writeCard(final VcfCard card) throws Exception {
 		writeCard(card, defaultVersion);
 	}
 
+	/**
+	 * Writes a card.
+	 *
+	 * @param card
+	 *            the card
+	 * @param version
+	 *            "2.1", "3.0" or "4.0"
+	 * @throws Exception
+	 *             if the version is not supported or writing fails
+	 */
 	public void writeCard(final VcfCard card, final String version) throws Exception {
 		if (!"2.1".equals(version) && !"3.0".equals(version) && !"4.0".equals(version)) {
 			throw new Exception("Invalid version. Must be one of '2.1', '3.0', '4.0'");
@@ -195,7 +266,7 @@ public class VcfWriter implements Closeable {
 				final List<String> values = new ArrayList<>();
 				values.addAll(address.getValues());
 
-				final Set<String> parametersToSet = new HashSet<>();
+				final Set<String> parametersToSet = new LinkedHashSet<>();
 				if (address.getAttributes() != null) {
 					parametersToSet.addAll(address.getAttributes());
 				}
@@ -251,15 +322,15 @@ public class VcfWriter implements Closeable {
 		if ("2.1".equals(version)) {
 			boolean mustEncode = false;
 			for (final String value : values) {
-				if (value != null && (!StandardCharsets.US_ASCII.newEncoder().canEncode(value) || value.contains("\n") || value.contains("\r") || value.contains("="))) {
+				if (value != null && (!StandardCharsets.US_ASCII.newEncoder().canEncode(value) || value.contains("\n") || value.contains("\r"))) {
 					mustEncode = true;
 					break;
 				}
 			}
-
 			if (mustEncode) {
+				// Quoted printable encoding encodes all characters, so ';' and '\\' need no escaping
 				for (int i = 0; i < values.size(); i++) {
-					values.set(i, QuotedPrintableCodec.encode(values.get(i), StandardCharsets.UTF_8));
+					values.set(i, QuotedPrintableCodec.encode(values.get(i) == null ? "" : values.get(i), StandardCharsets.UTF_8));
 				}
 				final List<String> parameterList = new ArrayList<>();
 				parameterList.add("CHARSET=UTF-8");
@@ -267,65 +338,74 @@ public class VcfWriter implements Closeable {
 				return parameterList;
 			} else {
 				for (int i = 0; i < values.size(); i++) {
-					values.set(i, values.get(i) == null ? "" : values.get(i).replace(";", "\\;"));
+					values.set(i, values.get(i) == null ? "" : values.get(i).replace("\\", "\\\\").replace(";", "\\;"));
 				}
 				return null;
 			}
 		} else {
-			// Vcf 3.0/4.0 mandate UTF-8, so no CHARSET parameter is needed.
-			// Note: this codebase still uses ENCODING=QUOTED-PRINTABLE for values needing escaping,
-			// which is not strictly RFC-conformant for 4.0 (RFC 6350 dropped this parameter), but
-			// round-trips correctly with this library's own VcfReader. For strict RFC 6350 output,
-			// backslash-escaping of newlines ("\n") would need to be implemented on both writer and reader.
-			boolean mustEncode = false;
-			for (final String value : values) {
-				if (value != null && (value.contains("\n") || value.contains("\r") || value.contains("="))) {
-					mustEncode = true;
-					break;
-				}
+			// Vcf 3.0/4.0 mandate UTF-8 and use backslash escapes for '\\', ';', ',' and linebreaks
+			for (int i = 0; i < values.size(); i++) {
+				values.set(i, values.get(i) == null ? "" : values.get(i)
+						.replace("\\", "\\\\")
+						.replace(";", "\\;")
+						.replace(",", "\\,")
+						.replace("\r\n", "\\n")
+						.replace("\r", "\\n")
+						.replace("\n", "\\n"));
 			}
-
-			if (mustEncode) {
-				for (int i = 0; i < values.size(); i++) {
-					values.set(i, QuotedPrintableCodec.encode(values.get(i), StandardCharsets.UTF_8));
-				}
-				final List<String> parameterList = new ArrayList<>();
-				parameterList.add("ENCODING=QUOTED-PRINTABLE");
-				return parameterList;
-			} else {
-				for (int i = 0; i < values.size(); i++) {
-					values.set(i, values.get(i) == null ? "" : values.get(i).replace(";", "\\;"));
-				}
-				return null;
-			}
+			return null;
 		}
 	}
 
 	/**
-	 * Get cards written until now.
+	 * Returns the number of cards written until now.
 	 *
-	 * @return the read cards
+	 * @return the number of cards
 	 */
 	public int getNumberOfWrittenCards() {
 		return writtenCards;
 	}
 
+	/**
+	 * Returns the number of lines written until now.
+	 *
+	 * @return the number of lines
+	 */
 	public int getNumberOfWrittenLines() {
 		return writtenLines;
 	}
 
+	/**
+	 * Writes cards in the default version.
+	 *
+	 * @param cards
+	 *            the cards
+	 * @throws Exception
+	 *             if writing fails
+	 */
 	public void writeAll(final List<VcfCard> cards) throws Exception {
 		for (final VcfCard card : cards) {
 			writeCard(card);
 		}
 	}
 
+	/**
+	 * Writes cards in the default version.
+	 *
+	 * @param cards
+	 *            the cards
+	 * @throws Exception
+	 *             if writing fails
+	 */
 	public void writeAll(final VcfCard... cards) throws Exception {
 		for (final VcfCard card : cards) {
 			writeCard(card);
 		}
 	}
 
+	/**
+	 * Flushes and closes the writer and its output stream.
+	 */
 	@Override
 	public void close() {
 		if (bufferedWriter != null) {

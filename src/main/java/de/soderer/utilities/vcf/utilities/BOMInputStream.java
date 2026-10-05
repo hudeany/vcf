@@ -4,15 +4,38 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PushbackInputStream;
 
+/**
+ * Input stream that detects a byte order mark (BOM) at the start of the data. The BOM stays part
+ * of the data until {@link #skipBOM()} is called.
+ */
 public class BOMInputStream extends PushbackInputStream {
+	/**
+	 * The detected byte order mark.
+	 */
 	private BOM bom = null;
+	/**
+	 * Whether the byte order mark was skipped.
+	 */
 	private boolean skipped = false;
 
+	/**
+	 * Creates a stream and detects the byte order mark.
+	 *
+	 * @param inputStream
+	 *            the stream to read from
+	 * @throws IOException
+	 *             if reading the start of the data fails
+	 */
 	public BOMInputStream(final InputStream inputStream) throws IOException {
 		super(inputStream, 4);
 
 		final byte firstBytes[] = new byte[4];
-		final int read = read(firstBytes);
+		// A single read may return fewer bytes than available (e.g. for network streams), so read until 4 bytes or end of data
+		int read = 0;
+		int readCount;
+		while (read < 4 && (readCount = read(firstBytes, read, 4 - read)) > 0) {
+			read += readCount;
+		}
 
 		switch (read) {
 			case 4:
@@ -49,10 +72,22 @@ public class BOMInputStream extends PushbackInputStream {
 		}
 	}
 
+	/**
+	 * Returns the detected byte order mark.
+	 *
+	 * @return the byte order mark, {@link BOM#NONE} if there is none
+	 */
 	public final BOM getBOM() {
 		return bom;
 	}
 
+	/**
+	 * Skips the byte order mark, if not done yet.
+	 *
+	 * @return this stream
+	 * @throws IOException
+	 *             if skipping fails
+	 */
 	public final synchronized BOMInputStream skipBOM() throws IOException {
 		if (!skipped) {
 			skip(bom.bytes.length);

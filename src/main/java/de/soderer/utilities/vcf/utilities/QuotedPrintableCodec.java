@@ -4,15 +4,26 @@ import java.io.ByteArrayOutputStream;
 import java.nio.charset.Charset;
 
 /**
+ * Codec for the quoted printable encoding used by vCard 2.1.
+ * <p>
  * See: https://en.wikipedia.org/wiki/Quoted-printable
+ * </p>
  */
 public class QuotedPrintableCodec {
 	/**
-	 * Decode text from QUOTED-PRINTABLE
+	 * Utility class, not to be instantiated.
+	 */
+	private QuotedPrintableCodec() {
+	}
+
+	/**
+	 * Decode text from QUOTED-PRINTABLE. Soft linebreaks ("=" at the end of a line) are removed.
 	 *
 	 * @param value
+	 *            the encoded text
 	 * @param charset
-	 * @return
+	 *            the encoding of the bytes
+	 * @return the decoded text
 	 */
 	public static String decode(final String value, final Charset charset) {
 		final ByteArrayOutputStream decodedByteArray = new ByteArrayOutputStream();
@@ -56,10 +67,15 @@ public class QuotedPrintableCodec {
 	 * Maximum resulting line length is 76 characters
 	 *
 	 * @param value
+	 *            the text, may be null
 	 * @param charset
-	 * @return
+	 *            the encoding of the bytes
+	 * @return the encoded text, or null for null
 	 */
 	public static String encode(final String value, final Charset charset) {
+		if (value == null) {
+			return null;
+		}
 		final StringBuilder encodedText = new StringBuilder();
 		int currentLineLength = 0;
 		for (final byte data : value.getBytes(charset)) {

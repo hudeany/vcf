@@ -15,6 +15,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 import de.soderer.utilities.vcf.utilities.BOM;
 import de.soderer.utilities.vcf.utilities.BOMInputStream;
@@ -23,11 +24,19 @@ import de.soderer.utilities.vcf.utilities.QuotedPrintableCodec;
 import de.soderer.utilities.vcf.utilities.Utilities;
 
 /**
- * Reader for vcf (vCard file) format
+ * Reader for vcf (vCard file) format, versions 2.1, 3.0 and 4.0
+ * <p>
+ * Property names are case insensitive and may have a group prefix (like "item1.TEL"). Values may
+ * be quoted printable encoded (with CHARSET parameter) or backslash escaped. Properties not
+ * supported by {@link VcfCard} are ignored, unless the reader is strict.
+ * </p>
  *
  * See: https://de.wikipedia.org/wiki/VCard#Eigenschaften
  */
 public class VcfReader implements Closeable {
+	/**
+	 * True to reject unknown properties and missing mandatory data.
+	 */
 	private boolean strict = false;
 
 	/** If a single read was done, it is impossible to make a full read at once with readAll(). */
@@ -36,10 +45,24 @@ public class VcfReader implements Closeable {
 	/** Number of cards read until now. */
 	private int readCards = 0;
 
+	/**
+	 * Number of lines read until now.
+	 */
 	private int readLines = 0;
 
+	/**
+	 * Reader of the input data.
+	 */
 	private BufferedReader inputReader = null;
 
+	/**
+	 * Creates a reader. The encoding is detected by a byte order mark, UTF-8 without one.
+	 *
+	 * @param inputStream
+	 *            the vcf data
+	 * @throws Exception
+	 *             if reading the start of the data fails
+	 */
 	public VcfReader(final InputStream inputStream) throws Exception {
 		final BOMInputStream bomInputStream = new BOMInputStream(inputStream);
 		final Charset detectedCharset = getCharsetForBom(bomInputStream.getBOM());
@@ -61,26 +84,52 @@ public class VcfReader implements Closeable {
 		}
 	}
 
+	/**
+	 * Returns whether the reader is strict.
+	 *
+	 * @return true, if unknown properties and missing mandatory data are errors
+	 */
 	public boolean isStrict() {
 		return strict;
 	}
 
+	/**
+	 * Sets whether the reader is strict. A strict reader rejects unknown properties and cards
+	 * without the data mandatory for their version. Otherwise unknown properties are ignored.
+	 *
+	 * @param strict
+	 *            true for a strict reader
+	 */
 	public void setStrict(final boolean strict) {
 		this.strict = strict;
 	}
 
+	/**
+	 * Sets whether the reader is strict, see {@link #setStrict(boolean)}.
+	 *
+	 * @param newStrict
+	 *            true for a strict reader
+	 * @return this reader for chaining
+	 */
 	public VcfReader withStrict(final boolean newStrict) {
 		setStrict(newStrict);
 		return this;
 	}
 
+	/**
+	 * Reads the next card.
+	 *
+	 * @return the card, or null if there are no further cards
+	 * @throws Exception
+	 *             if the data is invalid
+	 */
 	public VcfCard readNextCard() throws Exception {
 		singleReadStarted = true;
 
 		String nextLine;
 		while ((nextLine = inputReader.readLine()) != null) {
 			readLines++;
-			if (nextLine.equals(VcfConstants.BEGIN_VCARD)) {
+			if (nextLine.trim().equalsIgnoreCase(VcfConstants.BEGIN_VCARD)) {
 				break;
 			}
 		}
@@ -100,7 +149,7 @@ public class VcfReader implements Closeable {
 		while ((nextLine = inputReader.readLine()) != null) {
 			readLines++;
 
-			if (nextLine.equals(VcfConstants.END_VCARD)) {
+			if (nextLine.trim().equalsIgnoreCase(VcfConstants.END_VCARD)) {
 				break;
 			} else if (Utilities.isBlank(nextLine)) {
 				// Skip empty lines without touching continuation tracking (lastLine/lastLineWasQuotedPrintable)
@@ -109,7 +158,7 @@ public class VcfReader implements Closeable {
 				// QUOTED-PRINTABLE encoded multiline
 				nextLine = lastLine + "\n" + nextLine;
 				vcfCardLines.set(vcfCardLines.size() - 1, nextLine);
-			} else if (nextLine.startsWith(" ") || nextLine.startsWith("\t")) {
+			} else if (lastLine != null && (nextLine.startsWith(" ") || nextLine.startsWith("\t"))) {
 				// Base64 (or folded) data multiline
 				nextLine = lastLine + nextLine.substring(1);
 				vcfCardLines.set(vcfCardLines.size() - 1, nextLine);
@@ -118,7 +167,7 @@ public class VcfReader implements Closeable {
 			}
 
 			lastLine = nextLine;
-			lastLineWasQuotedPrintable = lastLine.toUpperCase().contains("ENCODING=QUOTED-PRINTABLE");
+			lastLineWasQuotedPrintable = isQuotedPrintable(lastLine.substring(0, lastLine.indexOf(':') < 0 ? lastLine.length() : lastLine.indexOf(':')).split(";"));
 		}
 
 		if (nextLine == null) {
@@ -146,10 +195,15 @@ public class VcfReader implements Closeable {
 				throw new Exception("Missing prefix separator ':' in line: " + currentLineNumber);
 			}
 
-			final String[] prefixes = Utilities.split(line.substring(0, line.indexOf(":")), ';', '\\');
-			final String[] values = Utilities.split(line.substring(line.indexOf(":") + 1), ';', '\\', -1);
+			final String[] prefixes = line.substring(0, line.indexOf(":")).split(";");
+			final String rawValue = line.substring(line.indexOf(":") + 1);
+			final String[] values = splitEscaped(rawValue).toArray(new String[0]);
 
-			final String property = prefixes[0];
+			// Property names are case insensitive and may have a group prefix like "item1.TEL"
+			String property = prefixes[0].trim().toUpperCase(Locale.ROOT);
+			if (property.indexOf('.') >= 0) {
+				property = property.substring(property.lastIndexOf('.') + 1);
+			}
 
 			if (VcfConstants.VERSION_PROPERTY.equals(property)) {
 				if (values.length != 1) {
@@ -176,68 +230,44 @@ public class VcfReader implements Closeable {
 				card.setNameSuffix(decodedValues.get(4));
 			} else if (VcfConstants.FORMATTED_NAME_PROPERTY.equals(property)) {
 				formattedNamePropertyWasPresent = true;
-				final List<String> decodedValues = decodeValues(prefixes, values);
-				if (decodedValues.size() != 1) {
-					throw new Exception("Invalid formatted name (" + VcfConstants.FORMATTED_NAME_PROPERTY + ") data (must have 1 part, has " + decodedValues.size() + ") in line " + currentLineNumber);
-				}
+				// Single text value: a ";" is part of the text, also if not escaped
+				final List<String> decodedValues = decodeSingleValue(prefixes, rawValue);
 				card.setFormattedName(decodedValues.get(0));
 			} else if (VcfConstants.ORGANIZATION_PROPERTY.equals(property)) {
 				final List<String> decodedValues = decodeValues(prefixes, values);
 				card.setOrganization(new ArrayList<>(decodedValues));
 			} else if (VcfConstants.ROLE_PROPERTY.equals(property)) {
-				final List<String> decodedValues = decodeValues(prefixes, values);
-				if (decodedValues.size() != 1) {
-					throw new Exception("Invalid role (" + VcfConstants.ROLE_PROPERTY + ") data (must have 1 part, has " + decodedValues.size() + ") in line " + currentLineNumber);
-				}
+				// Single text value: a ";" is part of the text, also if not escaped
+				final List<String> decodedValues = decodeSingleValue(prefixes, rawValue);
 				card.setRole(decodedValues.get(0));
 			} else if (VcfConstants.TITLE_PROPERTY.equals(property)) {
-				final List<String> decodedValues = decodeValues(prefixes, values);
-				if (decodedValues.size() != 1) {
-					throw new Exception("Invalid title (" + VcfConstants.TITLE_PROPERTY + ") data (must have 1 part, has " + decodedValues.size() + ") in line " + currentLineNumber);
-				}
+				// Single text value: a ";" is part of the text, also if not escaped
+				final List<String> decodedValues = decodeSingleValue(prefixes, rawValue);
 				card.setTitle(decodedValues.get(0));
 			} else if (VcfConstants.PHOTO_PROPERTY.equals(property)) {
 				boolean isBase64Encoded = false;
 				for (final String prefix : prefixes) {
-					if ("ENCODING=BASE64".equalsIgnoreCase(prefix) || "ENCODING=b".equalsIgnoreCase(prefix)) {
+					if ("ENCODING=BASE64".equalsIgnoreCase(prefix) || "ENCODING=b".equalsIgnoreCase(prefix) || "BASE64".equalsIgnoreCase(prefix)) {
 						isBase64Encoded = true;
 						break;
 					}
 				}
 				if (isBase64Encoded) {
-					if (values.length != 1) {
-						throw new Exception("Invalid photo (" + VcfConstants.PHOTO_PROPERTY + ") data (must have 1 part, has " + values.length + ") in line " + currentLineNumber);
-					}
-					final byte[] data = Utilities.decodeBase64(values[0]);
+					final byte[] data = Utilities.decodeBase64(rawValue);
 					card.setPhotoData(data);
 				} else {
-					final List<String> decodedValues = decodeValues(prefixes, values);
-					if (decodedValues.size() != 1) {
-						throw new Exception("Invalid photo (" + VcfConstants.PHOTO_PROPERTY + ") data (must have 1 part, has " + decodedValues.size() + ") in line " + currentLineNumber);
-					}
+					final List<String> decodedValues = decodeSingleValue(prefixes, rawValue);
 					card.setPhotoUrl(decodedValues.get(0));
 				}
 			} else if (VcfConstants.TELEPHONE_PROPERTY.equals(property)) {
-				final List<String> decodedValues = decodeValues(prefixes, values);
-				if (decodedValues.size() != 1) {
-					throw new Exception("Invalid telephonenumber (" + VcfConstants.TELEPHONE_PROPERTY + ") data (must have 1 part, has " + decodedValues.size() + ") in line " + currentLineNumber);
-				}
-				final List<String> reducedPrefixes = new ArrayList<>();
-				for (final String prefix : prefixes) {
-					reducedPrefixes.add(prefix);
-				}
-				reducedPrefixes.remove(0);
+				// Single text value: a ";" is part of the text, also if not escaped
+				final List<String> decodedValues = decodeSingleValue(prefixes, rawValue);
+				final List<String> reducedPrefixes = getAttributes(prefixes);
 				card.addTelephoneNumber(new VcfAttributedValue(decodedValues.get(0), reducedPrefixes));
 			} else if (VcfConstants.EMAIL_PROPERTY.equals(property)) {
-				final List<String> decodedValues = decodeValues(prefixes, values);
-				if (decodedValues.size() != 1) {
-					throw new Exception("Invalid email (" + VcfConstants.EMAIL_PROPERTY + ") data (must have 1 part, has " + decodedValues.size() + ") in line " + currentLineNumber);
-				}
-				final List<String> reducedPrefixes = new ArrayList<>();
-				for (final String prefix : prefixes) {
-					reducedPrefixes.add(prefix);
-				}
-				reducedPrefixes.remove(0);
+				// Single text value: a ";" is part of the text, also if not escaped
+				final List<String> decodedValues = decodeSingleValue(prefixes, rawValue);
+				final List<String> reducedPrefixes = getAttributes(prefixes);
 				card.addEmail(new VcfAttributedValue(decodedValues.get(0), reducedPrefixes));
 			} else if (VcfConstants.ADDRESS_PROPERTY.equals(property)) {
 				final List<String> decodedValues = decodeValues(prefixes, values);
@@ -248,44 +278,33 @@ public class VcfReader implements Closeable {
 					// Tolerate missing trailing empty parts, as produced by some real-world vcf exporters
 					decodedValues.add(null);
 				}
-				final List<String> reducedPrefixes = new ArrayList<>();
-				for (final String prefix : prefixes) {
-					reducedPrefixes.add(prefix);
-				}
-				reducedPrefixes.remove(0);
+				final List<String> reducedPrefixes = getAttributes(prefixes);
 				card.addAddress(new VcfAttributedAddress(decodedValues, reducedPrefixes));
 			} else if (VcfConstants.REVISION_PROPERTY.equals(property)) {
-				final List<String> decodedValues = decodeValues(prefixes, values);
-				if (decodedValues.size() != 1) {
-					throw new Exception("Invalid title (" + VcfConstants.REVISION_PROPERTY + ") data (must have 1 part, has " + decodedValues.size() + ") in line " + currentLineNumber);
-				}
+				// Single text value: a ";" is part of the text, also if not escaped
+				final List<String> decodedValues = decodeSingleValue(prefixes, rawValue);
 				if (decodedValues.get(0).contains("-")) {
 					card.setLatestUpdate(DateUtilities.parseIso8601DateTimeString(decodedValues.get(0)));
 				} else if (decodedValues.get(0).contains("T")) {
 					card.setLatestUpdate(DateUtilities.parseZonedDateTime("yyyyMMdd'T'HHmmssX", decodedValues.get(0), ZoneId.systemDefault()));
 				} else {
-					card.setLatestUpdate(DateUtilities.parseZonedDateTime("yyyyMMdd", decodedValues.get(0), ZoneId.systemDefault()));
+					// Date without time
+					card.setLatestUpdate(DateUtilities.parseLocalDate("yyyyMMdd", decodedValues.get(0)).atStartOfDay(ZoneId.systemDefault()));
 				}
 			} else if (VcfConstants.URL_PROPERTY.equals(property)) {
-				final List<String> decodedValues = decodeValues(prefixes, values);
-				if (decodedValues.size() != 1) {
-					throw new Exception("Invalid title (" + VcfConstants.URL_PROPERTY + ") data (must have 1 part, has " + decodedValues.size() + ") in line " + currentLineNumber);
-				}
+				// Single text value: a ";" is part of the text, also if not escaped
+				final List<String> decodedValues = decodeSingleValue(prefixes, rawValue);
 				card.setUrl(decodedValues.get(0));
 			} else if (VcfConstants.NOTE_PROPERTY.equals(property)) {
-				final List<String> decodedValues = decodeValues(prefixes, values);
-				if (decodedValues.size() != 1) {
-					throw new Exception("Invalid title (" + VcfConstants.NOTE_PROPERTY + ") data (must have 1 part, has " + decodedValues.size() + ") in line " + currentLineNumber);
-				}
+				// Single text value: a ";" is part of the text, also if not escaped
+				final List<String> decodedValues = decodeSingleValue(prefixes, rawValue);
 				card.setNote(decodedValues.get(0));
 			} else if (VcfConstants.BIRTHDAY_PROPERTY.equals(property)) {
-				final List<String> decodedValues = decodeValues(prefixes, values);
-				if (decodedValues.size() != 1) {
-					throw new Exception("Invalid title (" + VcfConstants.BIRTHDAY_PROPERTY + ") data (must have 1 part, has " + decodedValues.size() + ") in line " + currentLineNumber);
-				}
+				// Single text value: a ";" is part of the text, also if not escaped
+				final List<String> decodedValues = decodeSingleValue(prefixes, rawValue);
 				if (decodedValues.get(0).startsWith("--")) {
-					// Date without year "--12-31"
-					card.setBirthday(MonthDay.parse(decodedValues.get(0), DateTimeFormatter.ofPattern("--MM-dd")));
+					// Date without year "--12-31" or "--1231"
+					card.setBirthday(MonthDay.parse(decodedValues.get(0), DateTimeFormatter.ofPattern(decodedValues.get(0).length() == 6 ? "--MMdd" : "--MM-dd")));
 					card.setBirthyear(null);
 				} else if (decodedValues.get(0).contains("-")) {
 					final LocalDate birthDay = DateUtilities.parseIso8601DateTimeString(decodedValues.get(0)).toLocalDate();
@@ -338,31 +357,119 @@ public class VcfReader implements Closeable {
 	}
 
 	private static List<String> decodeValues(final String[] prefixes, final String[] values) {
-		final List<String> prefixList = Arrays.asList(prefixes);
 		final List<String> valuesDecoded = new ArrayList<>();
-
-		if (prefixList.contains("ENCODING=QUOTED-PRINTABLE")) {
+		if (isQuotedPrintable(prefixes)) {
+			final Charset charset = getCharset(prefixes);
 			for (final String value : values) {
-				valuesDecoded.add(QuotedPrintableCodec.decode(value, StandardCharsets.UTF_8));
+				valuesDecoded.add(QuotedPrintableCodec.decode(value, charset));
 			}
 		} else {
 			for (final String value : values) {
 				valuesDecoded.add(value);
 			}
 		}
-
 		return valuesDecoded;
 	}
 
+	private static List<String> decodeSingleValue(final String[] prefixes, final String rawValue) {
+		return decodeValues(prefixes, new String[] { unescape(rawValue) });
+	}
+
+	private static boolean isQuotedPrintable(final String[] prefixes) {
+		for (final String prefix : prefixes) {
+			if ("ENCODING=QUOTED-PRINTABLE".equalsIgnoreCase(prefix.trim()) || "QUOTED-PRINTABLE".equalsIgnoreCase(prefix.trim())) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static Charset getCharset(final String[] prefixes) {
+		for (final String prefix : prefixes) {
+			if (prefix.trim().toUpperCase(Locale.ROOT).startsWith("CHARSET=")) {
+				try {
+					return Charset.forName(prefix.trim().substring("CHARSET=".length()).replace("\"", ""));
+				} catch (@SuppressWarnings("unused") final Exception e) {
+					// Unknown charset: use default
+				}
+			}
+		}
+		return StandardCharsets.UTF_8;
+	}
+
+	private static List<String> getAttributes(final String[] prefixes) {
+		final List<String> attributes = new ArrayList<>();
+		for (int i = 1; i < prefixes.length; i++) {
+			final String prefix = prefixes[i].trim();
+			final String upperCasePrefix = prefix.toUpperCase(Locale.ROOT);
+			// Encoding parameters describe the stored value, they are no attributes of the data
+			if (!upperCasePrefix.startsWith("ENCODING=") && !upperCasePrefix.startsWith("CHARSET=") && !"QUOTED-PRINTABLE".equals(upperCasePrefix) && !"BASE64".equals(upperCasePrefix)) {
+				attributes.add(prefix);
+			}
+		}
+		return attributes;
+	}
+
+	private static List<String> splitEscaped(final String rawValue) {
+		final List<String> parts = new ArrayList<>();
+		final StringBuilder part = new StringBuilder();
+		for (int i = 0; i < rawValue.length(); i++) {
+			final char nextChar = rawValue.charAt(i);
+			if (nextChar == '\\' && i + 1 < rawValue.length()) {
+				part.append(nextChar).append(rawValue.charAt(++i));
+			} else if (nextChar == ';') {
+				parts.add(unescape(part.toString()));
+				part.setLength(0);
+			} else {
+				part.append(nextChar);
+			}
+		}
+		parts.add(unescape(part.toString()));
+		return parts;
+	}
+
+	private static String unescape(final String value) {
+		if (value.indexOf('\\') < 0) {
+			return value;
+		}
+		final StringBuilder unescapedValue = new StringBuilder();
+		for (int i = 0; i < value.length(); i++) {
+			final char nextChar = value.charAt(i);
+			if (nextChar == '\\' && i + 1 < value.length()) {
+				final char escapedChar = value.charAt(++i);
+				if (escapedChar == 'n' || escapedChar == 'N') {
+					unescapedValue.append('\n');
+				} else if (escapedChar == '\\' || escapedChar == ';' || escapedChar == ',') {
+					unescapedValue.append(escapedChar);
+				} else {
+					// Unknown escape sequence (e.g. in vCard 2.1 data): keep it as it is
+					unescapedValue.append(nextChar).append(escapedChar);
+				}
+			} else {
+				unescapedValue.append(nextChar);
+			}
+		}
+		return unescapedValue.toString();
+	}
+
 	/**
-	 * Get cards read until now.
+	 * Returns the number of cards read until now.
 	 *
-	 * @return the read cards
+	 * @return the number of cards
 	 */
 	public int getNumberOfCardsRead() {
 		return readCards;
 	}
 
+	/**
+	 * Reads all cards.
+	 *
+	 * @return the cards
+	 * @throws IllegalStateException
+	 *             if single cards were read before
+	 * @throws Exception
+	 *             if the data is invalid
+	 */
 	public List<VcfCard> readAll() throws Exception {
 		if (singleReadStarted) {
 			throw new IllegalStateException("Single readNextCard was called before readAll");
@@ -376,6 +483,9 @@ public class VcfReader implements Closeable {
 		return cards;
 	}
 
+	/**
+	 * Closes the reader and its input stream.
+	 */
 	@Override
 	public void close() {
 		if (inputReader != null) {
