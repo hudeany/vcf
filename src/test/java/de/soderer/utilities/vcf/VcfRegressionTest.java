@@ -15,6 +15,7 @@ import de.soderer.utilities.vcf.utilities.DateUtilities;
 /**
  * Regression tests for bugs found during the Javadoc and bug review of the vcf library.
  */
+@SuppressWarnings("static-method")
 public class VcfRegressionTest {
 	private static List<VcfCard> read(final String vcfData) throws Exception {
 		try (VcfReader reader = new VcfReader(new ByteArrayInputStream(vcfData.getBytes(StandardCharsets.UTF_8)))) {
