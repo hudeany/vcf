@@ -70,6 +70,8 @@ public class VcfRegressionTest {
 	@Test
 	public void testDates() throws Exception {
 		Assertions.assertEquals(2, read("BEGIN:VCARD\nVERSION:3.0\nFN:x\nREV:20200102\nEND:VCARD\n").get(0).getLatestUpdate().getDayOfMonth());
+		// Fractions of seconds are decimal fractions (".123" = 123 milliseconds), not a number of nanoseconds
+		Assertions.assertEquals(123_000_000, read("BEGIN:VCARD\nVERSION:3.0\nFN:x\nREV:2020-01-02T03:04:05.123Z\nEND:VCARD\n").get(0).getLatestUpdate().getNano());
 		Assertions.assertEquals(MonthDay.of(3, 15), read("BEGIN:VCARD\nVERSION:4.0\nFN:x\nBDAY:--0315\nEND:VCARD\n").get(0).getBirthday());
 		Assertions.assertEquals(31, DateUtilities.parseUnknownDateFormat("31.12.2020").getDayOfMonth());
 		final ZonedDateTime utcTime = DateUtilities.parseUnknownDateFormat("20201231T101500Z", java.time.ZoneId.of("Europe/Berlin"));

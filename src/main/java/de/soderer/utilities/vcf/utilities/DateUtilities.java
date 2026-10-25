@@ -5,8 +5,10 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
+import java.time.temporal.ChronoField;
 
 /**
  * Date and time helper methods.
@@ -17,6 +19,27 @@ public class DateUtilities {
 	 */
 	private DateUtilities() {
 	}
+
+	/**
+	 * Local date and time with an optional fraction of 0 to 9 digits after the seconds.
+	 * The fraction is read as decimal fraction of a second (".123" = 123 milliseconds). The pattern letter "n" would read
+	 * the digits as plain number of nanoseconds instead (".123" = 123 nanoseconds).
+	 */
+	private static final DateTimeFormatter ISO_LOCAL_DATE_TIME_WITH_FRACTION = new DateTimeFormatterBuilder()
+			.appendPattern("uuuu-MM-dd'T'HH:mm:ss")
+			.appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true)
+			.toFormatter()
+			.withResolverStyle(ResolverStyle.STRICT);
+
+	/**
+	 * Like {@link #ISO_LOCAL_DATE_TIME_WITH_FRACTION}, followed by an offset like "+01:00".
+	 */
+	private static final DateTimeFormatter ISO_OFFSET_DATE_TIME_WITH_FRACTION = new DateTimeFormatterBuilder()
+			.appendPattern("uuuu-MM-dd'T'HH:mm:ss")
+			.appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true)
+			.appendPattern("XXXXX")
+			.toFormatter()
+			.withResolverStyle(ResolverStyle.STRICT);
 
 	/**
 	 * Date format "dd.MM.yyyy HH:mm:ss".
@@ -169,12 +192,10 @@ public class DateUtilities {
 			if (dateValueString.contains(".")) {
 				if (hasTimezone) {
 					// Date with time and partial seconds
-					final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss[.n]XXXXX").withResolverStyle(ResolverStyle.STRICT);
-					return ZonedDateTime.parse(dateValueString, dateTimeFormatter);
+					return ZonedDateTime.parse(dateValueString, ISO_OFFSET_DATE_TIME_WITH_FRACTION);
 				} else {
-					// Date with time and milliseconds
-					final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss[.n]").withResolverStyle(ResolverStyle.STRICT);
-					return LocalDateTime.parse(dateValueString, dateTimeFormatter).atZone(defaultZoneId);
+					// Date with time and partial seconds
+					return LocalDateTime.parse(dateValueString, ISO_LOCAL_DATE_TIME_WITH_FRACTION).atZone(defaultZoneId);
 				}
 			} else {
 				// Date with time
